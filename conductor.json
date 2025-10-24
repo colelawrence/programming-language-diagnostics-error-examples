@@ -1,0 +1,6 @@
+{
+  "//": "https://conductor.build",
+  "scripts": {
+    "setup": "git fetch; mise trust"
+  }
+}

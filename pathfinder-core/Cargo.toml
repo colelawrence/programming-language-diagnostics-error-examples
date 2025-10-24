@@ -1,0 +1,9 @@
+[package]
+name = "pathfinder-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+shared-types = { path = "../shared-types" }
+petgraph = "0.6"
+serde_json = "1.0"

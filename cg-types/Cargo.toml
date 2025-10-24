@@ -1,0 +1,20 @@
+[package]
+name = "cg-types"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.70"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+default = ["codegen"]
+codegen = ["derive-codegen/generate"]
+
+[dependencies]
+log = { version = "0.4.20" }
+chrono = { workspace = true, features = ["serde", "now"] }
+derive-codegen = { workspace = true, default-features = false }
+serde = { workspace = true, features = ["derive"] }
+cg-protocol = { workspace = true, features = ["annotation", "serde"] }
+cg-base = { workspace = true, features = ["serde"] }
+i_cg_types_proc = { version = "0.0.0", path = "./proc" }
+serde_json = "1.0.114"

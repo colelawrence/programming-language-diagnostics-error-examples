@@ -1,0 +1,124 @@
+@import "tailwindcss";
+
+@theme {
+  /* ==============================================
+     PATHFINDER UI - Terminal-Inspired Design System
+     ==============================================
+     
+     Design Philosophy:
+     - Terminal/CLI aesthetic with monospace fonts
+     - Light and dark color schemes with theme toggle
+     - High contrast for readability
+     - Consistent text sizing (mostly uniform)
+     - Minimal visual hierarchy through color, not size
+     - Graph/viz labels can be smaller when needed
+     ============================================== */
+
+  /* Typography - System Monospace Stack */
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  
+  /* Make mono the default everywhere */
+  --font-sans: var(--font-mono);
+
+  /* Text sizing - Mostly uniform with small labels for graphs */
+  --text-base: 0.9375rem;      /* 15px - default text size */
+  --text-label: 0.75rem;       /* 12px - for graph labels only */
+  --text-header: 1rem;         /* 16px - minimal hierarchy */
+  
+  /* Line heights for code/terminal aesthetic */
+  --leading-tight: 1.4;
+  --leading-normal: 1.5;
+
+  /* Semantic colors that adapt to theme via CSS variables */
+  --color-background: var(--color-terminal-black);
+  --color-surface: var(--color-terminal-gray);
+  --color-surface-elevated: var(--color-terminal-gray-light);
+  
+  --color-text: var(--color-terminal-text);
+  --color-text-secondary: var(--color-terminal-text-dim);
+  --color-text-tertiary: var(--color-terminal-text-dimmer);
+  
+  --color-primary: var(--color-terminal-green);
+  --color-accent: var(--color-terminal-cyan);
+  --color-success: var(--color-terminal-green);
+  --color-warning: var(--color-terminal-yellow);
+  --color-error: var(--color-terminal-red);
+  --color-info: var(--color-terminal-blue);
+  
+  --color-border: var(--color-terminal-border);
+  --color-border-focus: var(--color-terminal-green);
+}
+
+/* Dark Theme (Default) - CSS variables only */
+:root {
+  --color-terminal-black: oklch(0.12 0.01 264);
+  --color-terminal-gray: oklch(0.18 0.01 264);
+  --color-terminal-gray-light: oklch(0.25 0.01 264);
+  
+  --color-terminal-text: oklch(0.95 0.01 264);
+  --color-terminal-text-dim: oklch(0.65 0.01 264);
+  --color-terminal-text-dimmer: oklch(0.45 0.01 264);
+  
+  --color-terminal-green: oklch(0.75 0.15 145);
+  --color-terminal-cyan: oklch(0.75 0.12 195);
+  --color-terminal-yellow: oklch(0.80 0.14 90);
+  --color-terminal-red: oklch(0.65 0.22 25);
+  --color-terminal-magenta: oklch(0.70 0.18 320);
+  --color-terminal-blue: oklch(0.65 0.18 250);
+  
+  --color-terminal-border: oklch(0.30 0.01 264);
+  --color-terminal-border-bright: oklch(0.40 0.01 264);
+}
+
+/* Light Theme - CSS variables only */
+:root[data-theme="light"] {
+  --color-terminal-black: oklch(0.98 0.005 264);
+  --color-terminal-gray: oklch(0.95 0.005 264);
+  --color-terminal-gray-light: oklch(0.92 0.005 264);
+  
+  --color-terminal-text: oklch(0.20 0.01 264);
+  --color-terminal-text-dim: oklch(0.45 0.01 264);
+  --color-terminal-text-dimmer: oklch(0.60 0.01 264);
+  
+  --color-terminal-green: oklch(0.55 0.15 145);
+  --color-terminal-cyan: oklch(0.50 0.12 195);
+  --color-terminal-yellow: oklch(0.60 0.14 90);
+  --color-terminal-red: oklch(0.55 0.22 25);
+  --color-terminal-magenta: oklch(0.55 0.18 320);
+  --color-terminal-blue: oklch(0.50 0.18 250);
+  
+  --color-terminal-border: oklch(0.80 0.01 264);
+  --color-terminal-border-bright: oklch(0.70 0.01 264);
+}
+
+/* Base styles */
+body {
+  background-color: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-weight: normal;
+  font-size: var(--text-header);
+  line-height: var(--leading-tight);
+}
+
+code, pre {
+  font-family: var(--font-mono);
+}
+
+a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+a:hover {
+  color: var(--color-primary);
+}

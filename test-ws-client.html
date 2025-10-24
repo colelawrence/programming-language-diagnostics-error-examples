@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Pathfinder Test</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        button { margin: 5px; padding: 10px; }
+        #log { border: 1px solid #ccc; padding: 10px; height: 400px; overflow-y: scroll; }
+        .sent { color: blue; }
+        .received { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Pathfinder Test Client</h1>
+    <button onclick="connect()">Connect</button>
+    <button onclick="disconnect()">Disconnect</button>
+    <button onclick="testFindPath()">Test Find Shortest Path</button>
+    <button onclick="clearLog()">Clear Log</button>
+    <div id="log"></div>
+
+    <script>
+        let ws = null;
+        let requestId = 0;
+
+        function log(message, type = '') {
+            const div = document.getElementById('log');
+            const p = document.createElement('p');
+            p.className = type;
+            p.textContent = new Date().toISOString() + ': ' + message;
+            div.appendChild(p);
+            div.scrollTop = div.scrollHeight;
+        }
+
+        function connect() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                log('Already connected', 'error');
+                return;
+            }
+
+            ws = new WebSocket('ws://127.0.0.1:10810');
+
+            ws.onopen = () => {
+                log('Connected to server', 'received');
+            };
+
+            ws.onmessage = (event) => {
+                log('Received: ' + event.data, 'received');
+                try {
+                    const response = JSON.parse(event.data);
+                    log('Parsed response: ' + JSON.stringify(response, null, 2), 'received');
+                } catch (e) {
+                    log('Failed to parse response: ' + e.message, 'error');
+                }
+            };
+
+            ws.onerror = (error) => {
+                log('WebSocket error: ' + error, 'error');
+            };
+
+            ws.onclose = () => {
+                log('Connection closed', 'error');
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+                log('Disconnected');
+            }
+        }
+
+        function testFindPath() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('Not connected', 'error');
+                return;
+            }
+
+            requestId++;
+            const request = {
+                Call: [
+                    requestId,
+                    {
+                        find_shortest_path: {
+                            points: [
+                                { x: 0, y: 0 },
+                                { x: 1, y: 0 },
+                                { x: 2, y: 0 },
+                                { x: 0, y: 1 },
+                                { x: 1, y: 1 },
+                                { x: 2, y: 1 }
+                            ],
+                            edges: [
+                                { from: 0, to: 1 },
+                                { from: 1, to: 2 },
+                                { from: 0, to: 3 },
+                                { from: 1, to: 4 },
+                                { from: 2, to: 5 },
+                                { from: 3, to: 4 },
+                                { from: 4, to: 5 }
+                            ],
+                            start_idx: 0,
+                            end_idx: 5
+                        }
+                    }
+                ]
+            };
+
+            const json = JSON.stringify(request);
+            log('Sending: ' + json, 'sent');
+            ws.send(json);
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+    </script>
+</body>
+</html>

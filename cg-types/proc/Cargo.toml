@@ -1,0 +1,18 @@
+[package]
+name = "i_cg_types_proc"
+description = "Proc-macro supporting the `cg-types` crate."
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[lib]
+doc = false
+proc-macro = true
+
+[dependencies]
+derive-codegen = { workspace = true, default-features = false }
+quote = "1.0.2"
+
+[dependencies.proc-macro2]
+version = "1.0.66"
+default-features = false

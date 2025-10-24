@@ -1,0 +1,83 @@
+[tools]
+bun = "1.3"
+"cargo:wasm-opt" = "0.116"
+"cargo:wasm-pack" = "0.13"
+node = "24"
+rust = "1.90"
+tilt = "0.35"
+
+[env]
+_.path = [
+  # adds paths relative to directory in which this file was found (see below for details), not PWD
+  "{{config_root}}/node_modules/.bin",
+]
+TILT_PORT = "10308"
+
+[tasks."install-deps"]
+description = "Install JavaScript dependencies"
+run = "bun install"
+sources = ["package.json", "bun.lock"]
+outputs = ["node_modules/**/*"]
+
+[tasks."wasm:build"]
+description = "Build WASM module for production"
+run = "wasm-pack build --target web --out-dir pkg"
+sources = ["src-rust/**/*.rs", "Cargo.toml"]
+outputs = ["pkg/*.js", "pkg/*.wasm", "pkg/*.ts"]
+
+[tasks."wasm:dev"]
+description = "Build WASM module for development"
+run = "wasm-pack build --dev --target web --out-dir pkg"
+sources = ["src-rust/**/*.rs", "Cargo.toml"]
+outputs = ["pkg/*.js", "pkg/*.wasm", "pkg/*.ts"]
+
+[tasks.dev]
+description = "Run development server with WASM rebuild"
+depends = ["install-deps"]
+run = "vite"
+# no sources, since this is a long running command
+
+[tasks.build]
+description = "Build for production"
+depends = ["install-deps", "wasm:build"]
+run = "vite build"
+sources = ["src/**/*", "vite.config.mts", "tsconfig.json"]
+outputs = ["build/**/*"]
+
+[tasks.preview]
+description = "Preview production build locally"
+depends = ["build"]
+run = "bunx serve ./build"
+
+[tasks.typecheck]
+description = "Type check TypeScript files"
+depends = ["install-deps", "codegen:typescript"]
+run = "tsgo --build ."
+sources = ["src/**/*", "tsconfig.json", "package.json", "bun.lock"]
+
+[tasks.server]
+description = "Run WebSocket server"
+run = "cargo run -p pathfinder-server"
+
+[tasks."wasm:watch"]
+description = "Watch and rebuild WASM on changes"
+run = "mise watch -t wasm:dev"
+
+[tasks.tilt]
+alias = "up"
+description = "Start Tilt development environment"
+run = "tilt up"
+
+[tasks."tilt:down"]
+description = "Stop Tilt and clean up resources"
+run = "tilt down"
+
+[tasks."codegen:typescript"]
+description = "Generate TypeScript types from Rust types"
+run = "cargo test -p shared-types --features codegen generate_typescript -- --ignored"
+sources = ["src-rust/**/*.rs", "Cargo.toml", "cg-types/generators/*.ts", "cg-types/src/**/*.rs", "generators/**/*.ts"]
+outputs = ["cg-types/generators/gen/**/*", "generators/**/*"]
+
+# Uncomment to pin tool versions
+# node = "22"
+# rust = "latest"

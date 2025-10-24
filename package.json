@@ -1,0 +1,45 @@
+{
+  "name": "@phosphor/shell",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "mise run dev",
+    "build": "mise run build",
+    "preview": "vite preview",
+    "wasm:watch": "mise run wasm:watch",
+    "test": "vitest",
+    "test:wasm": "vitest run src/router/router.test.ts"
+  },
+  "dependencies": {
+    "@livestore/adapter-web": "^0.3.1",
+    "@livestore/livestore": "^0.3.1",
+    "@livestore/react": "^0.3.1",
+    "@tanstack/react-router": "^1.132.2",
+    "d3": "^7.9.0",
+    "effect": "^3.18.4",
+    "jotai": "^2.15.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@livestore/devtools-vite": "^0.3.1",
+    "@tailwindcss/cli": "^4.1.14",
+    "@tailwindcss/vite": "^4.1.14",
+    "@tanstack/router-plugin": "^1.132.2",
+    "@types/d3": "^7.4.3",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@typescript/native-preview": "^7.0.0-dev.20251014.1",
+    "@vitejs/plugin-react-swc": "^4.1.0",
+    "@vitest/browser": "^3.2.4",
+    "bun-types": "^1.3.0",
+    "happy-dom": "^20.0.0",
+    "tailwindcss": "^4.1.14",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.9",
+    "vite-plugin-wasm": "^3.5.0",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^3.2.4"
+  }
+}

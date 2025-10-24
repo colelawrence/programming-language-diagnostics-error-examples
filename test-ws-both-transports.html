@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Transport Comparison Test</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .container { display: flex; gap: 20px; }
+        .transport { flex: 1; border: 1px solid #ccc; padding: 15px; border-radius: 5px; }
+        button { margin: 5px; padding: 10px; cursor: pointer; }
+        .log { border: 1px solid #ddd; padding: 10px; height: 300px; overflow-y: scroll; margin-top: 10px; background: #f9f9f9; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        h2 { margin-top: 0; }
+    </style>
+</head>
+<body>
+    <h1>Transport Comparison: WASM vs WebSocket</h1>
+    <p>Test the same pathfinding operation using both WASM (in-browser) and WebSocket (server) transports.</p>
+    
+    <div class="container">
+        <div class="transport">
+            <h2>🦀 WASM Transport</h2>
+            <button onclick="testWasm()">Test WASM</button>
+            <button onclick="clearLog('wasm')">Clear Log</button>
+            <div id="wasm-log" class="log"></div>
+        </div>
+
+        <div class="transport">
+            <h2>🌐 WebSocket Transport</h2>
+            <button onclick="connectWs()">Connect</button>
+            <button onclick="testWs()">Test WebSocket</button>
+            <button onclick="clearLog('ws')">Clear Log</button>
+            <div id="ws-log" class="log"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import init, * as wasm from './pkg/wasm_pathfinder.js';
+
+        let wasmReady = false;
+        let ws = null;
+        let requestId = 0;
+
+        // Test data
+        const testParams = {
+            points: [
+                { x: 0, y: 0 },
+                { x: 1, y: 0 },
+                { x: 2, y: 0 },
+                { x: 0, y: 1 },
+                { x: 1, y: 1 },
+                { x: 2, y: 1 }
+            ],
+            edges: [
+                { from: 0, to: 1 },
+                { from: 1, to: 2 },
+                { from: 0, to: 3 },
+                { from: 1, to: 4 },
+                { from: 2, to: 5 },
+                { from: 3, to: 4 },
+                { from: 4, to: 5 }
+            ],
+            start_idx: 0,
+            end_idx: 5
+        };
+
+        function log(type, message, level = 'info') {
+            const div = document.getElementById(`${type}-log`);
+            const p = document.createElement('p');
+            p.className = level;
+            p.textContent = new Date().toLocaleTimeString() + ': ' + message;
+            div.appendChild(p);
+            div.scrollTop = div.scrollHeight;
+        }
+
+        window.clearLog = (type) => {
+            document.getElementById(`${type}-log`).innerHTML = '';
+        };
+
+        // Initialize WASM
+        init().then(() => {
+            wasmReady = true;
+            wasm.init_router(() => {});
+            log('wasm', 'WASM initialized and ready', 'success');
+        }).catch(err => {
+            log('wasm', `WASM initialization failed: ${err}`, 'error');
+        });
+
+        // WASM test
+        window.testWasm = () => {
+            if (!wasmReady) {
+                log('wasm', 'WASM not ready yet', 'error');
+                return;
+            }
+
+            requestId++;
+            const request = {
+                Call: [requestId, { find_shortest_path: testParams }]
+            };
+
+            log('wasm', `Sending request #${requestId}...`, 'info');
+            const startTime = performance.now();
+
+            wasm.send_request(request, (response) => {
+                const [id, responseEnum] = response;
+                
+                if (id !== requestId) return;
+
+                if ('N' in responseEnum && 'find_shortest_path' in responseEnum.N) {
+                    const result = responseEnum.N.find_shortest_path;
+                    const elapsed = (performance.now() - startTime).toFixed(2);
+                    log('wasm', `✓ Path: [${result.path.join(' → ')}]`, 'success');
+                    log('wasm', `✓ Distance: ${result.distance.toFixed(2)}`, 'success');
+                    log('wasm', `⏱ Time: ${elapsed}ms`, 'info');
+                } else if ('Error' in responseEnum) {
+                    log('wasm', `✗ Error: ${responseEnum.Error}`, 'error');
+                } else if ('Complete' in responseEnum) {
+                    log('wasm', `Complete: ${responseEnum.Complete}`, 'info');
+                }
+            });
+        };
+
+        // WebSocket test
+        window.connectWs = () => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                log('ws', 'Already connected', 'info');
+                return;
+            }
+
+            ws = new WebSocket('ws://127.0.0.1:10810');
+
+            ws.onopen = () => {
+                log('ws', 'Connected to server', 'success');
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const response = JSON.parse(event.data);
+                    const [id, responseEnum] = response;
+
+                    if ('N' in responseEnum && 'find_shortest_path' in responseEnum.N) {
+                        const result = responseEnum.N.find_shortest_path;
+                        log('ws', `✓ Path: [${result.path.join(' → ')}]`, 'success');
+                        log('ws', `✓ Distance: ${result.distance.toFixed(2)}`, 'success');
+                    } else if ('Error' in responseEnum) {
+                        log('ws', `✗ Error: ${responseEnum.Error}`, 'error');
+                    } else if ('Complete' in responseEnum) {
+                        log('ws', `Complete: ${responseEnum.Complete}`, 'info');
+                    }
+                } catch (e) {
+                    log('ws', `Parse error: ${e.message}`, 'error');
+                }
+            };
+
+            ws.onerror = () => {
+                log('ws', 'Connection error', 'error');
+            };
+
+            ws.onclose = () => {
+                log('ws', 'Connection closed', 'info');
+            };
+        };
+
+        window.testWs = () => {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('ws', 'Not connected. Click Connect first.', 'error');
+                return;
+            }
+
+            requestId++;
+            const request = {
+                Call: [requestId, { find_shortest_path: testParams }]
+            };
+
+            log('ws', `Sending request #${requestId}...`, 'info');
+            const startTime = performance.now();
+            ws.send(JSON.stringify(request));
+
+            // Note: timing is approximate since we don't track individual requests
+        };
+    </script>
+</body>
+</html>

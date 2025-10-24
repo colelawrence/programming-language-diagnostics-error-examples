@@ -1,0 +1,8 @@
+# Cursor Rules
+
+See AGENTS.md for comprehensive development guidelines.
+
+AGENTS.md is the source of truth for:
+- Build, test, and development commands
+- Architecture and codebase structure  
+- Code style guidelines and conventions
