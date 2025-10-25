@@ -69,15 +69,23 @@ export function EditorComponent({ router, initialContent = INITIAL_CODE }: Edito
     if (!model) return;
     // Create Monaco markers for proper hover behavior and problems panel
     const markers = diagnostics.messages.flatMap((msg) =>
-      msg.spans.map((span): Monaco.editor.IMarkerData => ({
-        startLineNumber: span.span.start_line,
-        startColumn: span.span.start_column + 1, // Monaco uses 1-based columns
-        endLineNumber: span.span.end_line,
-        endColumn: span.span.end_column + 1,
-        message: `${msg.code}: ${msg.message}`,
-        severity: getMonacoSeverity(msg.severity),
-        source: "Custom Language Analyzer",
-      })),
+      msg.spans.map((span): Monaco.editor.IMarkerData => {
+        const isReference = span.role.type === "Reference";
+        const isSuggestion = span.role.type === "Suggestion";
+        return {
+          startLineNumber: span.span.start_line,
+          startColumn: span.span.start_column + 1, // Monaco uses 1-based columns
+          endLineNumber: span.span.end_line,
+          endColumn: span.span.end_column + 1,
+          message: `${msg.code}: ${msg.message}`,
+          severity: isReference
+            ? monaco.MarkerSeverity.Hint
+            : isSuggestion
+            ? monaco.MarkerSeverity.Info
+            : getMonacoSeverity(msg.severity),
+          source: "Custom Language Analyzer",
+        };
+      }),
     );
 
     // Set markers on the model
