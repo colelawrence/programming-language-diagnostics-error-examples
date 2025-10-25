@@ -172,18 +172,32 @@ pub struct FilterParam {
     pub span: SourceCodeSpan,
 }
 
-/// Helper to create spans
-impl SourceCodeSpan {
-    pub fn from_pest_span(span: pest::Span, line_offset: usize) -> Self {
-        let (start_line, start_col) = span.start_pos().line_col();
-        let (end_line, end_col) = span.end_pos().line_col();
-        
-        SourceCodeSpan {
-            start_line: start_line + line_offset,
-            start_column: start_col.saturating_sub(1),
-            end_line: end_line + line_offset,
-            end_column: end_col.saturating_sub(1),
-        }
+/// Helper function to create SourceCodeSpan from pest::Span with offsets
+/// line_offset and column_offset are 1-based positions in the original document
+pub fn span_from_pest(span: pest::Span, line_offset: usize, column_offset: usize) -> SourceCodeSpan {
+    let (start_line, start_col) = span.start_pos().line_col();
+    let (end_line, end_col) = span.end_pos().line_col();
+    
+    // Pest gives 1-based line/col numbers
+    // We want to output 1-based line numbers (for Monaco Editor)
+    // For single-line inputs, pest will always report line 1
+    // So we replace pest's line with the actual line from line_offset
+    
+    SourceCodeSpan {
+        // Since we're parsing single lines, pest line will be 1
+        // Use line_offset as the actual line number (1-based)
+        start_line: if start_line == 1 { line_offset } else { start_line - 1 + line_offset },
+        start_column: if start_line == 1 { 
+            start_col.saturating_sub(1) + column_offset 
+        } else { 
+            start_col.saturating_sub(1) 
+        },
+        end_line: if end_line == 1 { line_offset } else { end_line - 1 + line_offset },
+        end_column: if end_line == 1 { 
+            end_col.saturating_sub(1) + column_offset 
+        } else { 
+            end_col.saturating_sub(1) 
+        },
     }
 }
 

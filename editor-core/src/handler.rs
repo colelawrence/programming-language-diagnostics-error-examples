@@ -1,13 +1,15 @@
+use crate::parser::parse_command;
+use crate::analyzer::analyze_command;
 use shared_types::context::Context;
 use shared_types::router::{CallHandler, ObserverImpl};
 use shared_types::storage::Storage;
 use shared_types::{
     AnalyzeCodeParams, AnalyzerDiagnostics, DiagnosticKind, DiagnosticMessage, Severity,
-    SourceCodeSpan,
+    SourceCodeSpan, DiagnosticSpan, SpanRole,
 };
 use std::sync::Arc;
 
-/// EditorHandler implements the CallHandler trait for language analysis
+/// EditorHandler implements the CallHandler trait for FFmpeg command analysis
 /// This is the transport-agnostic business logic handler
 pub struct EditorHandler<S: Storage> {
     storage: Option<Arc<S>>,
@@ -26,8 +28,8 @@ impl<S: Storage> CallHandler for EditorHandler<S> {
         params: AnalyzeCodeParams,
         tx: ObserverImpl<AnalyzerDiagnostics>,
     ) {
-        // Simple lexical analysis to demonstrate the error protocol
-        let analysis_result = analyze_content(&params.content);
+        // Parse and analyze FFmpeg command with offsets
+        let analysis_result = analyze_content(&params.content, params.line_offset, params.column_offset);
 
         tx.next(analysis_result);
         tx.complete("Analysis complete".to_string());
@@ -53,115 +55,39 @@ impl<S: Storage> CallHandler for EditorHandler<S> {
     }
 }
 
-/// Analyze code content and return diagnostics
-fn analyze_content(content: &str) -> AnalyzerDiagnostics {
-    let mut messages = Vec::new();
-
-    // Simple demonstration: check for common patterns
-    for (line_idx, line) in content.lines().enumerate() {
-        let line_num = line_idx + 1;
-
-        // Check for undefined variables (simplified: look for 'undefined' keyword)
-        if let Some(col) = line.find("undefined") {
-            messages.push(DiagnosticMessage {
-                code: "E001".to_string(),
-                severity: Severity::Error,
-                kind: DiagnosticKind::UndefinedVariable {
-                    name: "undefined".to_string(),
-                },
-                message: "Use of undefined variable".to_string(),
-                spans: vec![SourceCodeSpan {
-                    start_line: line_num,
-                    start_column: col,
-                    end_line: line_num,
-                    end_column: col + 9, // "undefined".len()
-                }],
-            });
+/// Analyze FFmpeg command and return diagnostics with offset support
+fn analyze_content(content: &str, line_offset: usize, column_offset: usize) -> AnalyzerDiagnostics {
+    // Parse the FFmpeg command with offsets
+    match parse_command(content, line_offset, column_offset) {
+        Ok(command) => {
+            // Run semantic analysis
+            analyze_command(command)
         }
-
-        // Check for TODO comments
-        if let Some(col) = line.find("TODO") {
-            messages.push(DiagnosticMessage {
-                code: "W001".to_string(),
-                severity: Severity::Warning,
-                kind: DiagnosticKind::InvalidOperation {
-                    operation: "TODO comment".to_string(),
-                    reason: "Consider implementing this".to_string(),
-                },
-                message: "TODO comment found".to_string(),
-                spans: vec![SourceCodeSpan {
-                    start_line: line_num,
-                    start_column: col,
-                    end_line: line_num,
-                    end_column: line.len(),
-                }],
-            });
-        }
-
-        // Check for duplicate 'let' declarations (very simplified)
-        if line.contains("let ") && line.matches("let ").count() > 1 {
-            messages.push(DiagnosticMessage {
-                code: "E002".to_string(),
-                severity: Severity::Error,
-                kind: DiagnosticKind::DuplicateDefinition {
-                    name: "variable".to_string(),
-                },
-                message: "Multiple 'let' declarations on one line".to_string(),
-                spans: vec![SourceCodeSpan {
-                    start_line: line_num,
-                    start_column: 0,
-                    end_line: line_num,
-                    end_column: line.len(),
-                }],
-            });
-        }
-
-        // Check for type mismatches (look for '=' followed by different types)
-        if line.contains("String") && line.contains("= 123") {
-            if let Some(col) = line.find("= 123") {
-                messages.push(DiagnosticMessage {
-                    code: "E003".to_string(),
+        Err(parse_error) => {
+            // Return parse error as diagnostic
+            AnalyzerDiagnostics {
+                messages: vec![DiagnosticMessage {
+                    code: "E000".to_string(),
                     severity: Severity::Error,
-                    kind: DiagnosticKind::TypeError {
-                        expected: "String".to_string(),
-                        found: "Number".to_string(),
+                    kind: DiagnosticKind::ParseError {
+                        message: parse_error.clone(),
                     },
-                    message: "Type mismatch: expected String, found Number".to_string(),
-                    spans: vec![SourceCodeSpan {
-                        start_line: line_num,
-                        start_column: col,
-                        end_line: line_num,
-                        end_column: col + 5,
+                    message: format!("Failed to parse FFmpeg command: {}", parse_error),
+                    spans: vec![DiagnosticSpan {
+                        span: SourceCodeSpan {
+                            start_line: line_offset,
+                            start_column: column_offset,
+                            end_line: line_offset,
+                            end_column: column_offset + content.len().min(100),
+                        },
+                        role: SpanRole::Target,
+                        message: "parse error here".to_string(),
                     }],
-                });
+                    rich: None,
+                }],
             }
         }
-
-        // Check for syntax errors (unclosed braces, etc.)
-        let open_braces = line.matches('{').count();
-        let close_braces = line.matches('}').count();
-        if open_braces != close_braces {
-            messages.push(DiagnosticMessage {
-                code: "E004".to_string(),
-                severity: Severity::Error,
-                kind: DiagnosticKind::SyntaxError {
-                    message: "Unbalanced braces".to_string(),
-                },
-                message: format!(
-                    "Unbalanced braces: {} open, {} close",
-                    open_braces, close_braces
-                ),
-                spans: vec![SourceCodeSpan {
-                    start_line: line_num,
-                    start_column: 0,
-                    end_line: line_num,
-                    end_column: line.len(),
-                }],
-            });
-        }
     }
-
-    AnalyzerDiagnostics { messages }
 }
 
 #[cfg(test)]
@@ -170,32 +96,35 @@ mod tests {
     use shared_types::storage::InMemoryStorage;
 
     #[test]
-    fn test_analyze_empty_content() {
-        let result = analyze_content("");
-        assert_eq!(result.messages.len(), 0);
+    fn test_analyze_valid_command() {
+        let result = analyze_content("ffmpeg -i input.mp4 output.mp4", 0, 0);
+        // Valid command should have no errors (may have warnings)
+        let has_errors = result.messages.iter().any(|m| matches!(m.severity, Severity::Error));
+        assert!(!has_errors);
     }
 
     #[test]
-    fn test_analyze_undefined_variable() {
-        let result = analyze_content("let x = undefined;");
-        assert_eq!(result.messages.len(), 1);
-        assert_eq!(result.messages[0].code, "E001");
-        assert!(matches!(result.messages[0].severity, Severity::Error));
+    fn test_analyze_video_codec_on_audio() {
+        let result = analyze_content("ffmpeg -i audio.mp3 -c:v libx264 output.mp4", 0, 0);
+        // Should detect video codec on audio-only input
+        let has_error = result.messages.iter().any(|m| m.code == "E104");
+        assert!(has_error);
     }
 
     #[test]
-    fn test_analyze_todo_comment() {
-        let result = analyze_content("// TODO: implement this");
-        assert_eq!(result.messages.len(), 1);
-        assert_eq!(result.messages[0].code, "W001");
-        assert!(matches!(result.messages[0].severity, Severity::Warning));
+    fn test_analyze_invalid_resolution() {
+        let result = analyze_content("ffmpeg -i input.mp4 -s 1920 output.mp4", 0, 0);
+        // Should detect invalid resolution format
+        let has_error = result.messages.iter().any(|m| m.code == "E401");
+        assert!(has_error);
     }
 
     #[test]
-    fn test_analyze_multiple_errors() {
-        let content = "let x = undefined;\n// TODO: fix this\nlet y = 123;";
-        let result = analyze_content(content);
-        assert!(result.messages.len() >= 2);
+    fn test_analyze_codec_format_incompatibility() {
+        let result = analyze_content("ffmpeg -i input.mp4 -c:v vp9 output.mp4", 0, 0);
+        // VP9 is not compatible with MP4 container
+        let has_error = result.messages.iter().any(|m| m.code == "E201");
+        assert!(has_error);
     }
 
     #[test]
@@ -211,8 +140,10 @@ mod tests {
 
         let tx = ObserverImpl::new(1, Box::new(MockSender));
         let params = AnalyzeCodeParams {
-            content: "let x = undefined;".to_string(),
+            content: "ffmpeg -i input.mp4 output.mp4".to_string(),
             file_path: None,
+            line_offset: 0,
+            column_offset: 0,
         };
 
         handler.analyze_code(&ctx, params, tx);

@@ -5,20 +5,19 @@ WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
 COMMENT = _{ "#" ~ (!"\n" ~ ANY)* }
 
 // Top-level command structure
-command = { SOI ~ "ffmpeg"? ~ global_section? ~ input_section* ~ output_section* ~ EOI }
+command = { SOI ~ "ffmpeg"? ~ global_options* ~ input_section+ ~ output_section* ~ EOI }
 
-// Global options (before any -i)
-global_section = { global_option+ }
-global_option = { flag }
+// Global options (any option that comes before all -i flags)
+global_options = { !input_marker ~ option }
 
 // Input section: [options] -i file
-input_section = { input_options? ~ input_marker ~ file_path }
+input_section = { input_options* ~ input_marker ~ file_path }
 input_marker = { "-i" }
-input_options = { option+ }
+input_options = { !input_marker ~ option }
 
 // Output section: [options] file (no -i marker)
-output_section = { output_options? ~ file_path }
-output_options = { option+ }
+output_section = { output_options* ~ !input_marker ~ file_path }
+output_options = { !input_marker ~ option }
 
 // Options can be flags or key-value pairs
 option = {

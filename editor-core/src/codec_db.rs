@@ -1,5 +1,5 @@
 use shared_types::StreamType;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 /// Codec information
 #[derive(Debug, Clone)]

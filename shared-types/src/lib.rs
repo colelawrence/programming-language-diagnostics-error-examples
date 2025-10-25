@@ -83,6 +83,35 @@ pub enum StreamType {
     Unknown,
 }
 
+/// Role attached to a diagnostic span
+#[protocol("wasm")]
+pub enum SpanRole {
+    Target,
+    Reference,
+    Suggestion { replacement: String },
+}
+
+/// A diagnostic span with role and per-span message
+#[protocol("wasm")]
+pub struct DiagnosticSpan {
+    pub span: SourceCodeSpan,
+    pub role: SpanRole,
+    pub message: String,
+}
+
+/// Rich content blocks for diagnostics (GFM markdown and Mermaid diagrams)
+#[protocol("wasm")]
+pub enum RichBlock {
+    MarkdownGfm { markdown: String },
+    Mermaid { mermaid: String },
+}
+
+/// Optional rich content attached to a diagnostic
+#[protocol("wasm")]
+pub struct DiagnosticRich {
+    pub blocks: Vec<RichBlock>,
+}
+
 /// Discriminated union of all FFmpeg diagnostic kinds
 #[protocol("wasm")]
 pub enum DiagnosticKind {
@@ -143,9 +172,11 @@ pub struct DiagnosticMessage {
     pub kind: DiagnosticKind,
     /// Human-readable message
     pub message: String,
-    /// Source code spans where this diagnostic applies
+    /// Source code spans where this diagnostic applies, with roles
     /// Multiple spans for diagnostics that reference multiple locations
-    pub spans: Vec<SourceCodeSpan>,
+    pub spans: Vec<DiagnosticSpan>,
+    /// Optional rich content (markdown, mermaid diagrams)
+    pub rich: Option<DiagnosticRich>,
 }
 
 /// Complete response containing all diagnostic messages
@@ -162,6 +193,10 @@ pub struct AnalyzeCodeParams {
     pub content: String,
     /// Optional file path for context
     pub file_path: Option<String>,
+    /// Line offset for error reporting (0-based)
+    pub line_offset: usize,
+    /// Column offset for error reporting (0-based)
+    pub column_offset: usize,
 }
 
 #[cfg(test)]

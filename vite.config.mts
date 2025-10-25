@@ -1,6 +1,5 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { livestoreDevtoolsPlugin } from "@livestore/devtools-vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import viteReact from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
@@ -36,10 +35,6 @@ export default defineConfig((env) => ({
     }),
     viteReact(),
     tsconfigPaths(),
-    env.mode === "development" &&
-      livestoreDevtoolsPlugin({
-        schemaPath: shellDir("src/livestore/schema.ts"),
-      }),
   ],
   build: {
     target: ["chrome115", "firefox120", "safari16"],
