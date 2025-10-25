@@ -16,6 +16,12 @@ pub trait CallHandler {
         params: GraphMetricsParams,
         tx: ObserverImpl<GraphMetrics>,
     );
+    fn analyze_code(
+        &self,
+        ctx: &Context,
+        params: AnalyzeCodeParams,
+        tx: ObserverImpl<AnalyzerDiagnostics>,
+    );
 }
 
 #[allow(non_camel_case_types)]
@@ -23,6 +29,7 @@ pub trait CallHandler {
 pub enum CallGen {
     find_shortest_path(ShortestPathParams),
     compute_graph_metrics(GraphMetricsParams),
+    analyze_code(AnalyzeCodeParams),
 }
 
 #[allow(non_camel_case_types)]
@@ -30,6 +37,7 @@ pub enum CallGen {
 pub enum ResponseNextGen {
     find_shortest_path(PathResult),
     compute_graph_metrics(GraphMetrics),
+    analyze_code(AnalyzerDiagnostics),
 }
 
 pub(crate) fn gen_call(
@@ -50,6 +58,11 @@ pub(crate) fn gen_call(
             params,
             ObserverImpl::new(id, sender),
         ),
+        CallGen::analyze_code(params) => handler.analyze_code(
+            ctx,
+            params,
+            ObserverImpl::new(id, sender),
+        ),
     }
 }
 
@@ -63,5 +76,11 @@ impl super::ToResponseNextGen for PathResult {
 impl super::ToResponseNextGen for GraphMetrics {
     fn to_response_next_gen(self) -> ResponseNextGen {
         ResponseNextGen::compute_graph_metrics(self)
+    }
+}
+
+impl super::ToResponseNextGen for AnalyzerDiagnostics {
+    fn to_response_next_gen(self) -> ResponseNextGen {
+        ResponseNextGen::analyze_code(self)
     }
 }

@@ -1,7 +1,7 @@
 mod transport;
 
 use futures_util::StreamExt;
-use pathfinder_core::PathfinderHandler;
+use editor_core::EditorHandler;
 use shared_types::receiver::Receiver;
 use shared_types::router::Request;
 use shared_types::storage::NoStorage;
@@ -23,7 +23,7 @@ async fn handle_connection(stream: TcpStream, addr: SocketAddr) {
 
     let (write, mut read) = ws_stream.split();
     let session_id = format!("ws-{}", addr);
-    let handler = PathfinderHandler::<NoStorage>::new(None);
+    let handler = EditorHandler::<NoStorage>::new(None);
     let receiver = Receiver::new(session_id, handler, None::<NoStorage>);
     let ws_sender = WebSocketSender::new(write);
 

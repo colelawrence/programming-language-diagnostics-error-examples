@@ -2,7 +2,10 @@ use crate::compute_shortest_path;
 use shared_types::context::Context;
 use shared_types::router::{CallHandler, ObserverImpl};
 use shared_types::storage::Storage;
-use shared_types::{GraphMetrics, GraphMetricsParams, PathResult, ShortestPathParams};
+use shared_types::{
+    AnalyzeCodeParams, AnalyzerDiagnostics, GraphMetrics, GraphMetricsParams, PathResult,
+    ShortestPathParams,
+};
 use std::sync::Arc;
 
 /// PathfinderHandler implements the CallHandler trait
@@ -94,6 +97,15 @@ impl<S: Storage> CallHandler for PathfinderHandler<S> {
 
         tx.next(metrics);
         tx.complete("Metrics computed successfully".to_string());
+    }
+
+    fn analyze_code(
+        &self,
+        _ctx: &Context,
+        _params: AnalyzeCodeParams,
+        tx: ObserverImpl<AnalyzerDiagnostics>,
+    ) {
+        tx.error("Code analysis not supported in pathfinder handler".to_string());
     }
 }
 

@@ -1,5 +1,5 @@
 export { createRouter } from "./router";
-export { createWasmAdaptor } from "./wasmAdaptor";
+export { createWasmAdaptor, wasmAdaptor } from "./wasmAdaptor";
 export { createWebSocketAdaptor } from "./websocketAdaptor";
 export type {
   Adaptor,

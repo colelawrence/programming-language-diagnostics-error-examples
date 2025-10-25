@@ -1,4 +1,4 @@
-use pathfinder_core::PathfinderHandler;
+use editor_core::EditorHandler;
 use shared_types::receiver::Receiver;
 use shared_types::router::{Request, WireResponse, WireResponseSender};
 use shared_types::storage::InMemoryStorage;
@@ -28,8 +28,8 @@ pub fn send_request(request_js: JsValue, response_callback: js_sys::Function) ->
         callback: response_callback,
     });
 
-    // Create handler with optional in-memory storage
-    let handler = PathfinderHandler::new(Some(std::sync::Arc::new(InMemoryStorage::new())));
+    // Create editor handler with optional in-memory storage
+    let handler = EditorHandler::new(Some(std::sync::Arc::new(InMemoryStorage::new())));
 
     // Create receiver for this session
     let receiver = Receiver::new("wasm-session".to_string(), handler, Some(InMemoryStorage::new()));

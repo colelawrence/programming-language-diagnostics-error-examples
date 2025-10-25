@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 mod router_gen;
 pub use router_gen::CallHandler;
 
-#[protocol("router")]
+#[protocol("router", externally_tagged)]
 pub enum RequestEnum {
     Abort(usize, String),
     Call(usize, router_gen::CallGen),
@@ -14,7 +14,7 @@ pub enum RequestEnum {
 #[protocol("router")]
 pub struct WireResponse(pub usize, pub ResponseEnum);
 
-#[protocol("router")]
+#[protocol("router", externally_tagged)]
 pub enum ResponseEnum {
     Aborted(String),
     Error(String),

@@ -52,3 +52,6 @@ export function createWasmAdaptor(
     },
   };
 }
+
+/** Default WASM adaptor instance for convenience */
+export const wasmAdaptor = createWasmAdaptor();

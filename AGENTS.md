@@ -1,4 +1,4 @@
-# Agent Guide for WASM Pathfinder
+# Agent Guide for Language Editor
 
 ## Commands
 - **Dev (recommended)**: `mise run dev:watch` - Vite + auto-rebuild WASM on Rust changes (one command)
@@ -19,15 +19,19 @@
   - All: `cargo check --workspace`
   - WASM: `cargo check`
   - Server: `cargo check -p pathfinder-server`
-  - Core: `cargo check -p pathfinder-core`
+  - Editor: `cargo check -p editor-core`
+  - Pathfinder (legacy): `cargo check -p pathfinder-core`
 
 ## Architecture
 
 ### Crate Structure (Transport-Agnostic Design)
-- **`pathfinder-core/`** - Pure pathfinding logic, no transport dependencies
+- **`editor-core/`** - Language analysis logic, no transport dependencies
+  - Implements `CallHandler` trait from `shared-types`
+  - Analyzes code and generates structured diagnostics
+  - Works with any transport (WASM, WebSocket, HTTP, etc.)
+- **`pathfinder-core/`** - Legacy pathfinding logic (kept for reference)
   - Implements `CallHandler` trait from `shared-types`
   - Uses `petgraph` for shortest path algorithms
-  - Works with any transport (WASM, WebSocket, HTTP, etc.)
 - **`shared-types/`** - Protocol definitions and router infrastructure
   - Types with `#[protocol("wasm")]` - shared between Rust and TypeScript
   - Router types with `#[protocol("router")]` - request/response enums
@@ -38,12 +42,11 @@
   - Auto-generates TypeScript to `dist-types/` via codegen
 - **`src-rust/`** (WASM transport) - WASM-specific transport layer
   - Implements `WireResponseSender` for WASM callbacks
-  - Exports `init_router()` and `send_request()` to JavaScript
-  - Uses `pathfinder-core::PathfinderHandler` for business logic
-  - Legacy direct exports (backward compatible)
+  - Exports `send_request()` to JavaScript
+  - Uses `editor-core::EditorHandler` for business logic
 - **`pathfinder-server/`** - WebSocket transport server
   - Implements `WireResponseSender` for WebSocket connections
-  - Uses `pathfinder-core::PathfinderHandler` (same handler as WASM!)
+  - Uses `editor-core::EditorHandler` (same handler as WASM!)
   - Runs on port 10810, handles concurrent connections
   - Each connection gets its own `Receiver` instance
 
@@ -55,8 +58,9 @@
   - `websocketAdaptor.ts` - Server-side WebSocket transport
   - Application code uses same API regardless of transport
 - **Frontend**: React 19 + Vite + TanStack Router in `src/`
-  - `src/pathfinder.tsx` - Main visualization (D3.js) using WASM adaptor
-  - `src/examples/websocket-example.tsx` - WebSocket adaptor example
+  - `src/editor/` - Monaco Editor components with diagnostics
+  - `src/routes/index.tsx` - Main editor route using WASM adaptor
+  - `src/examples/` - Transport examples and legacy pathfinding demos
 - **Codegen**: `derive-codegen` auto-generates TypeScript types from Rust structs to `dist-types/`
 - **Livestore**: State management with `@livestore/livestore` in `src/livestore/`
 - **Build**: Vite bundles to `build/`; SPA mode; WASM built separately by wasm-pack, Vite auto-reloads on pkg/ changes
@@ -86,6 +90,13 @@
   - Accents: `text-primary` (green), `text-accent` (cyan), `text-warning` (yellow), `text-error` (red)
   - Borders: `border-border`, `border-border-focus`
 - **Theme Implementation**: Use `data-theme="light"` attribute on `:root` to switch themes (managed by useTheme hook)
-- **D3/SVG Colors**: ALWAYS use CSS variables (e.g., `var(--color-primary)`) instead of hardcoded colors for automatic theme switching
+- **Monaco Editor**: Use CSS variables for theming to match the terminal aesthetic
 - **Custom Colors**: Add new colors to `:root` and `:root[data-theme="light"]` in `src/styles.css` using `--color-*` namespace
 - **Reference**: See `src/styles.css` for complete color definitions and design philosophy
+
+## Editor Features
+- **Monaco Editor Integration**: Full VS Code editor with TypeScript/JavaScript language support
+- **Real-time Diagnostics**: Debounced code analysis (500ms) with span-based error highlighting
+- **Error Protocol**: Structured errors with `ErrorKind` enum (SyntaxError, TypeError, UndefinedVariable, etc.)
+- **Diagnostics Panel**: Terminal-themed panel showing all errors with line/column positions
+- **Transport Switching**: Same editor works with WASM or WebSocket backend

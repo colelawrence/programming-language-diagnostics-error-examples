@@ -53,6 +53,117 @@ pub struct GraphMetricsParams {
     pub edges: Vec<Edge>,
 }
 
+// ========== Editor Protocol Types ==========
+
+/// A span of source code defined by line and column positions
+#[protocol("wasm")]
+pub struct SourceCodeSpan {
+    pub start_line: usize,
+    pub start_column: usize,
+    pub end_line: usize,
+    pub end_column: usize,
+}
+
+/// Severity level of a diagnostic message
+#[protocol("wasm")]
+pub enum Severity {
+    Error,
+    Warning,
+    Info,
+    Hint,
+}
+
+/// Stream type in FFmpeg
+#[protocol("wasm")]
+pub enum StreamType {
+    Video,
+    Audio,
+    Subtitle,
+    Data,
+    Unknown,
+}
+
+/// Discriminated union of all FFmpeg diagnostic kinds
+#[protocol("wasm")]
+pub enum DiagnosticKind {
+    // E100-E199: Stream Type Mismatches
+    StreamTypeMismatch { filter: String, expected: StreamType, found: StreamType },
+    MissingStream { stream_type: StreamType, operation: String },
+    VideoFilterOnAudio { filter: String },
+    AudioFilterOnVideo { filter: String },
+    
+    // E200-E299: Codec/Format Incompatibilities
+    CodecFormatIncompatible { codec: String, format: String, reason: String },
+    InvalidCodecForStream { codec: String, stream_type: StreamType },
+    UnsupportedPixelFormat { format: String, codec: String },
+    UnsupportedSampleRate { rate: String, codec: String },
+    
+    // E300-E399: Stream Mapping Errors
+    StreamMappingError { mapping: String, reason: String },
+    NonExistentStream { stream_ref: String },
+    DuplicateMapping { stream_ref: String },
+    AmbiguousStreamSelection { reason: String },
+    
+    // E400-E499: Parameter/Option Errors
+    InvalidParameter { option: String, value: String, reason: String },
+    InvalidResolution { value: String },
+    InvalidBitrate { value: String },
+    InvalidFrameRate { value: String },
+    MutuallyExclusiveOptions { option1: String, option2: String },
+    MissingRequiredOption { option: String, context: String },
+    ParameterOutOfRange { option: String, value: String, min: String, max: String },
+    
+    // E500-E599: Filter Syntax Errors
+    FilterSyntaxError { filter: String, message: String },
+    UnknownFilter { filter: String },
+    MissingFilterParameter { filter: String, parameter: String },
+    InvalidFilterParameter { filter: String, parameter: String, value: String },
+    FilterChainTypeMismatch { from_type: StreamType, to_type: StreamType },
+    
+    // W100-W199: Performance/Quality Warnings
+    HighBitrateWarning { bitrate: String },
+    ResolutionUpscaling { from_res: String, to_res: String },
+    LossyTranscoding { message: String },
+    NoQualitySetting { codec: String },
+    
+    // General errors
+    ParseError { message: String },
+    UnknownOption { option: String },
+}
+
+/// A diagnostic message with its associated source locations
+/// This is the primary entity - users see a list of these
+#[protocol("wasm")]
+pub struct DiagnosticMessage {
+    /// Diagnostic code (e.g., "E001", "W002")
+    pub code: String,
+    /// Severity level
+    pub severity: Severity,
+    /// The specific kind of diagnostic
+    pub kind: DiagnosticKind,
+    /// Human-readable message
+    pub message: String,
+    /// Source code spans where this diagnostic applies
+    /// Multiple spans for diagnostics that reference multiple locations
+    pub spans: Vec<SourceCodeSpan>,
+}
+
+/// Complete response containing all diagnostic messages
+#[protocol("wasm")]
+pub struct AnalyzerDiagnostics {
+    pub messages: Vec<DiagnosticMessage>,
+}
+
+/// Parameters for code analysis
+#[protocol("wasm")]
+#[codegen(fn = "analyze_code() -> AnalyzerDiagnostics")]
+pub struct AnalyzeCodeParams {
+    /// The source code to analyze
+    pub content: String,
+    /// Optional file path for context
+    pub file_path: Option<String>,
+}
+
 #[cfg(test)]
 #[cfg(feature = "codegen")]
 mod generate {

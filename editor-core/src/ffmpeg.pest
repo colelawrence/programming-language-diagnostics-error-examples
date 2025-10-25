@@ -1,0 +1,116 @@
+// FFmpeg Command Grammar
+// Parses FFmpeg CLI commands with global options, inputs, and outputs
+
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+COMMENT = _{ "#" ~ (!"\n" ~ ANY)* }
+
+// Top-level command structure
+command = { SOI ~ "ffmpeg"? ~ global_section? ~ input_section* ~ output_section* ~ EOI }
+
+// Global options (before any -i)
+global_section = { global_option+ }
+global_option = { flag }
+
+// Input section: [options] -i file
+input_section = { input_options? ~ input_marker ~ file_path }
+input_marker = { "-i" }
+input_options = { option+ }
+
+// Output section: [options] file (no -i marker)
+output_section = { output_options? ~ file_path }
+output_options = { option+ }
+
+// Options can be flags or key-value pairs
+option = {
+    filter_complex_option
+    | video_filter_option
+    | audio_filter_option
+    | codec_option
+    | bitrate_option
+    | resolution_option
+    | framerate_option
+    | map_option
+    | format_option
+    | time_option
+    | stream_option
+    | flag
+}
+
+// Specific option types with their values
+filter_complex_option = { "-filter_complex" ~ filter_graph }
+video_filter_option = { ("-vf" | "-filter:v") ~ filter_graph }
+audio_filter_option = { ("-af" | "-filter:a") ~ filter_graph }
+
+codec_option = { 
+    ("-c:v" | "-vcodec" | "-codec:v") ~ codec_name
+    | ("-c:a" | "-acodec" | "-codec:a") ~ codec_name
+    | ("-c" | "-codec") ~ codec_name
+}
+
+bitrate_option = {
+    ("-b:v" | "-vb") ~ bitrate
+    | ("-b:a" | "-ab") ~ bitrate
+    | "-b" ~ bitrate
+}
+
+resolution_option = { "-s" ~ resolution }
+framerate_option = { ("-r" | "-rate") ~ number }
+map_option = { "-map" ~ map_specifier }
+format_option = { "-f" ~ format_name }
+
+time_option = {
+    "-ss" ~ time_value
+    | "-t" ~ time_value
+    | "-to" ~ time_value
+}
+
+stream_option = {
+    "-ar" ~ number  // audio sample rate
+    | "-ac" ~ number  // audio channels
+}
+
+// Generic flag (catches all other options)
+flag = { "-" ~ flag_name ~ flag_value? }
+flag_name = @{ (ASCII_ALPHANUMERIC | "_" | ":")+ }
+flag_value = { !("-" | "[") ~ value }
+
+// Filter graph syntax
+filter_graph = { quoted_string | unquoted_filter }
+unquoted_filter = @{ (!(WHITESPACE | "\"") ~ ANY)+ }
+
+// Filter chains (for advanced parsing in analyzer)
+filter_chain = { filter ~ ("," ~ filter)* }
+filter = { filter_name ~ ("=" ~ filter_params)? }
+filter_name = @{ (ASCII_ALPHA | "_")+ }
+filter_params = { filter_param ~ (":" ~ filter_param)* }
+filter_param = { param_key ~ "=" ~ param_value | param_value }
+param_key = @{ (ASCII_ALPHANUMERIC | "_")+ }
+param_value = @{ (ASCII_ALPHANUMERIC | "." | "-" | "/" | "_")+ }
+
+// Stream/map specifiers
+map_specifier = @{ number ~ (":" ~ stream_type_char ~ (":" ~ number)?)? | "[" ~ (!"]" ~ ANY)+ ~ "]" }
+stream_type_char = { "v" | "a" | "s" | "d" }
+
+// Value types
+codec_name = @{ (ASCII_ALPHANUMERIC | "_" | "-")+ }
+format_name = @{ ASCII_ALPHANUMERIC+ }
+
+bitrate = @{ number ~ bitrate_unit? }
+bitrate_unit = { "k" | "K" | "M" | "m" }
+
+resolution = @{ number ~ "x" ~ number }
+
+time_value = @{ number ~ ("." ~ number)? | number ~ ":" ~ number ~ ":" ~ number ~ ("." ~ number)? }
+
+number = @{ ASCII_DIGIT+ }
+
+value = { quoted_string | unquoted_value }
+unquoted_value = @{ (!WHITESPACE ~ ANY)+ }
+
+// File paths and strings
+file_path = { quoted_string | unquoted_path }
+unquoted_path = @{ (!WHITESPACE ~ ANY)+ }
+quoted_string = @{ "\"" ~ inner_string ~ "\"" | "'" ~ inner_string_single ~ "'" }
+inner_string = @{ (!"\"" ~ ANY)* }
+inner_string_single = @{ (!"'" ~ ANY)* }
+

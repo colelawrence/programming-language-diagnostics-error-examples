@@ -41,9 +41,17 @@ pub fn protocol(
     let codegen_attr = quote::quote! {#[codegen(tags = #tag #attrs)]};
     let mut output = quote::quote! {
         #[allow(non_snake_case)]
-        #[derive(derive_codegen::Codegen, serde::Serialize, serde::Deserialize, Debug, Clone)] #codegen_attr
+        #[derive(derive_codegen::Codegen, serde::Serialize, serde::Deserialize, Debug, Clone)]
+        #codegen_attr
     };
-    output.extend(following);
 
+    // If the item is an enum && not externally tagged, add #[serde(tag = "type")]
+    if following.to_string().contains("enum ") && !attrs.to_string().contains("externally_tagged") {
+        output.extend(quote::quote! {
+            #[serde(tag = "type")]
+        });
+    }
+
+    output.extend(following);
     proc_macro::TokenStream::from(output)
 }

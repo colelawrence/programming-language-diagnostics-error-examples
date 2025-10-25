@@ -2,7 +2,7 @@
 
 ## Overview
 
-The router system provides a transport-agnostic way to communicate with the pathfinder backend. You can seamlessly switch between WASM (in-browser) and WebSocket (server-side) transports using adaptors.
+The router system provides a transport-agnostic way to communicate with the Rust backend (editor or pathfinder). You can seamlessly switch between WASM (in-browser) and WebSocket (server-side) transports using adaptors.
 
 ## Architecture
 
@@ -47,13 +47,21 @@ The router system provides a transport-agnostic way to communicate with the path
 ### WASM Transport (Default)
 
 ```typescript
-import { createRouter, createWasmAdaptor } from "./router";
+import { createRouter, wasmAdaptor } from "./router";
 
 const router = createRouter({
-  adaptor: createWasmAdaptor(),
+  adaptor: wasmAdaptor, // default WASM adaptor
 });
 
-router.findShortestPath(params).subscribe({
+// Editor example
+router.analyze_code({ content: "let x = undefined;" }).subscribe({
+  next: (result) => console.log("Diagnostics:", result),
+  error: (error) => console.error("Error:", error),
+  complete: () => console.log("Done"),
+});
+
+// Pathfinding example (legacy)
+router.find_shortest_path(params).subscribe({
   next: (result) => console.log("Path:", result.path),
   error: (error) => console.error("Error:", error),
   complete: () => console.log("Done"),
@@ -73,8 +81,9 @@ const router = createRouter({
   }),
 });
 
-router.findShortestPath(params).subscribe({
-  next: (result) => console.log("Path:", result.path),
+// Same API as WASM!
+router.analyze_code({ content: "let x = undefined;" }).subscribe({
+  next: (result) => console.log("Diagnostics:", result),
   error: (error) => console.error("Error:", error),
   complete: () => console.log("Done"),
 });
@@ -124,16 +133,20 @@ Both adaptors use the same wire protocol matching the Rust `RequestEnum` and `Re
 **Request:**
 ```typescript
 {
+  Call: [requestId, { analyze_code: params }]
+}
+// or
+{
   Call: [requestId, { find_shortest_path: params }]
 }
 ```
 
 **Response:**
 ```typescript
-[requestId, { N: { find_shortest_path: result } }]  // Next
-[requestId, { Error: "error message" }]              // Error
-[requestId, { Complete: "notes" }]                   // Complete
-[requestId, { Aborted: "reason" }]                   // Aborted
+[requestId, { N: { analyze_code: result } }]  // Next (with diagnostics)
+[requestId, { Error: "error message" }]       // Error
+[requestId, { Complete: "notes" }]            // Complete
+[requestId, { Aborted: "reason" }]            // Aborted
 ```
 
 ## Files

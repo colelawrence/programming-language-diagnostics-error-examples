@@ -1,10 +1,6 @@
-# WASM Pathfinder Starter
+# Language Editor with Rust-Powered Diagnostics
 
-A starter project that uses Rust/WASM with `wasm-bindgen` and `petgraph` for shortest path computation, and D3.js for visualization.
-
-Quick Loom demo and Overview:
-
-[![Quick Loom demo and Overview](./docs/2025-10-14-loom@2x.jpeg)](https://www.loom.com/share/745c225bf0f44aaea4fab6c77e74c1a4)
+A Monaco Editor-based code editor with real-time language diagnostics powered by Rust, demonstrating a transport-agnostic architecture where the same analysis logic runs via WASM (in-browser) or WebSocket (server-side).
 
 ## Quick Start
 
@@ -25,7 +21,7 @@ mise install    # Installs Rust, Bun, Tilt, wasm-pack, etc.
 mise run tilt
 ```
 
-That's it! This starts the full development environment with WASM auto-rebuild, Vite dev server, and WebSocket server.
+That's it! Visit http://localhost:10880 to start editing with live error detection.
 
 ## Development Commands
 
@@ -47,27 +43,52 @@ mise run wasm:build   # Build WASM only
 mise run typecheck    # Check TypeScript types
 cargo test            # Run Rust tests
 bun test              # Run TypeScript tests
+
+# Code generation (after changing Rust types)
+cd shared-types && cargo test --features codegen generate_typescript -- --ignored
 ```
 
 ## Project Structure
 
+- `editor-core/` - Language analysis logic (transport-agnostic Rust)
 - `src-rust/` - Rust WASM transport layer
-- `pathfinder-core/` - Pure pathfinding logic (transport-agnostic)
 - `pathfinder-server/` - WebSocket transport server
 - `shared-types/` - Protocol definitions and router infrastructure
 - `src/` - React/TypeScript frontend
-- `src/router/` - Transport-agnostic router with WASM and WebSocket adaptors
-- `src/pathfinder.tsx` - D3.js visualization with transport switching
+  - `src/editor/` - Monaco Editor components and diagnostics
+  - `src/router/` - Transport-agnostic router with WASM and WebSocket adaptors
 - `pkg/` - Generated WASM module (auto-generated)
+- `dist-types/` - Auto-generated TypeScript types from Rust
 - `docs/` - Project documentation
-  - `architecture/` - System design and crate structure
-  - `development/` - Codegen and development guides
-  - `features/` - Feature documentation
-  - `proposals/` - Design proposals and RFCs
+
+## Features
+
+### Editor
+- **Monaco Editor** - Full VS Code editor in the browser
+- **Real-time Analysis** - Debounced code analysis as you type
+- **Error Highlighting** - Span-based error underlining with hover messages
+- **Diagnostics Panel** - Detailed error list with line/column positions
+- **Theme Support** - Light/dark mode with terminal aesthetic
+
+### Language Diagnostics
+- Syntax errors (unbalanced braces, etc.)
+- Type errors (type mismatches)
+- Undefined variable detection
+- Duplicate definitions
+- TODO comment warnings
+- **Extensible** - Easy to add new error types
+
+### Architecture
+- **Transport-Agnostic** - Same analysis logic for WASM and WebSocket
+- **Type-Safe** - Rust types auto-generate TypeScript types
+- **Span-Ready** - Full line/column information for error highlighting
+- **Observable Pattern** - Streaming responses from Rust
 
 ## How It Works
 
-1. Rust computes the shortest path between points using Dijkstra's algorithm from the `petgraph` library
-2. The result is serialized and sent to JavaScript via wasm-bindgen
-3. D3.js visualizes the graph and highlights the shortest path
-4. Points are draggable, and the path recalculates in real-time
+1. You type code in the Monaco Editor
+2. After 500ms debounce, content is sent to Rust for analysis
+3. Rust parser analyzes code and generates structured diagnostics
+4. Errors with source code spans are returned
+5. Editor displays inline decorations and diagnostics panel
+6. All via WASM (no network) or WebSocket (server-side) - same API!

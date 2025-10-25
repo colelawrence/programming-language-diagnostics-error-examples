@@ -1,8 +1,8 @@
-# WASM Pathfinder - Transport-Agnostic Architecture
+# Language Editor - Transport-Agnostic Architecture
 
 ## Overview
 
-This project demonstrates a fully transport-agnostic architecture where the same business logic runs seamlessly via WASM (in-browser) or WebSocket (server-side) with identical APIs on both Rust and TypeScript sides.
+This project demonstrates a fully transport-agnostic architecture where language analysis logic runs seamlessly via WASM (in-browser) or WebSocket (server-side) with identical APIs on both Rust and TypeScript sides.
 
 ## Quick Start
 
@@ -17,17 +17,18 @@ mise run dev     # Vite dev server on :10880
 
 ## Architecture Highlights
 
-### Rust: Three-Crate Design
+### Rust: Four-Crate Design
 
 ```
-pathfinder-core/     ← Pure business logic (transport-independent)
+editor-core/         ← Language analysis logic (transport-independent)
+pathfinder-core/     ← Legacy pathfinding (kept for reference)
 shared-types/        ← Protocol & infrastructure
-pathfinder-server/   ← WebSocket transport
+pathfinder-server/   ← WebSocket transport (serves both handlers)
 src-rust/            ← WASM transport
 ```
 
 **Key Benefits:**
-- Same `PathfinderHandler` for WASM and WebSocket
+- Same `EditorHandler` for WASM and WebSocket
 - `CallHandler` trait separates logic from transport
 - `WireResponseSender` trait abstracts communication
 - Type generation ensures TypeScript/Rust sync
@@ -37,7 +38,7 @@ src-rust/            ← WASM transport
 ```typescript
 // WASM (in-browser)
 const router = createRouter({
-  adaptor: createWasmAdaptor()
+  adaptor: wasmAdaptor
 });
 
 // WebSocket (server)
@@ -48,8 +49,8 @@ const router = createRouter({
 });
 
 // Same API for both!
-router.findShortestPath(params).subscribe({
-  next: (result) => console.log(result.path),
+router.analyze_code({ content: "..." }).subscribe({
+  next: (result) => displayDiagnostics(result),
   error: (err) => console.error(err),
 });
 ```
@@ -57,10 +58,10 @@ router.findShortestPath(params).subscribe({
 ## Project Structure
 
 ```
-wasm-starter/
-├── pathfinder-core/          # Business logic (Rust)
+editor-project/
+├── editor-core/              # Language analysis (Rust)
 │   ├── src/handler.rs        # Implements CallHandler
-│   └── src/lib.rs            # Pathfinding algorithms
+│   └── src/lib.rs            # Analysis algorithms
 │
 ├── shared-types/             # Protocol definitions
 │   ├── src/lib.rs            # Types with #[protocol]
@@ -75,6 +76,10 @@ wasm-starter/
 ├── src-rust/                 # WASM transport
 │   └── lib.rs                # WASM bindings
 │
+├── src/editor/               # Editor components
+│   ├── EditorComponent.tsx   # Monaco Editor wrapper
+│   └── useEditorDiagnostics.ts # Analysis hook
+│
 ├── src/router/               # TypeScript router
 │   ├── types.ts              # Interfaces
 │   ├── router.ts             # Factory
@@ -82,7 +87,7 @@ wasm-starter/
 │   └── websocketAdaptor.ts   # WS transport
 │
 ├── src/                      # React app
-│   ├── pathfinder.tsx        # Main UI (uses WASM)
+│   ├── routes/index.tsx      # Main editor route
 │   └── examples/             # Transport examples
 │
 └── dist-types/               # Generated TypeScript types
@@ -91,26 +96,18 @@ wasm-starter/
 ## Key Files
 
 ### Documentation
-- **AGENTS.md** - Development commands and architecture overview
-- **docs/features/router-adaptors.md** - Adaptor pattern documentation
-- **docs/development/codegen.md** - Type generation guide
-- **docs/development/shared-types.md** - Adding routes and methods
+- **README.md** - Quick start and overview
+- **AGENTS.md** - Development commands and architecture
+- **IMPLEMENTATION_SUMMARY.md** - Full implementation details
+- **docs/architecture/** - Architecture documentation
+- **docs/development/** - Development guides
+- **docs/features/** - Feature documentation
 
 ### Configuration
 - **mise.toml** - Task runner configuration
 - **Tiltfile** - Development environment setup
 - **Cargo.toml** - Rust workspace configuration
 - **tsconfig.json** - TypeScript configuration
-
-### Tests
-- **src/wasm.test.ts** - Legacy WASM API tests
-- **src/wasmRouter.test.ts** - Router integration tests  
-- **src/router/router.test.ts** - Router unit tests
-- **src/router/websocket.test.ts** - WebSocket integration tests
-
-### Manual Testing
-- **test-ws-client.html** - Basic WebSocket test
-- **test-ws-both-transports.html** - Side-by-side comparison
 
 ## Development Workflow
 
@@ -134,23 +131,30 @@ cargo check --workspace  # Check all Rust
 # Type Checking
 mise run typecheck     # TypeScript
 tsgo --build .         # Direct TypeScript check
+
+# Code Generation
+cd shared-types
+cargo test --features codegen generate_typescript -- --ignored
 ```
 
-### Adding a New Method
+### Adding a New Error Type
 
 1. **Define in shared-types:**
    ```rust
    // shared-types/src/lib.rs
    #[protocol("wasm")]
-   #[codegen(fn = "new_method() -> NewResult")]
-   pub struct NewMethodParams { /* ... */ }
+   pub enum ErrorKind {
+       SyntaxError { message: String },
+       TypeError { expected: String, found: String },
+       YourNewError { details: String }, // ← Add here
+   }
    ```
 
-2. **Implement in core:**
+2. **Implement in editor-core:**
    ```rust
-   // pathfinder-core/src/handler.rs
-   fn call_new_method(&self, ctx: &Context, params: NewMethodParams, observer: ObserverImpl<NewResult>) {
-       // Implementation
+   // editor-core/src/handler.rs
+   fn analyze_content(content: &str) -> DiagnosticResponse {
+       // Add detection logic for your new error
    }
    ```
 
@@ -162,9 +166,10 @@ tsgo --build .         # Direct TypeScript check
 
 4. **Use in TypeScript:**
    ```typescript
-   router.newMethod(params).subscribe({
-     next: (result) => console.log(result),
-   });
+   // Automatically available in generated types
+   if (error.error_kind.type === 'YourNewError') {
+       console.log(error.error_kind.details);
+   }
    ```
 
 ## Design Patterns
@@ -189,12 +194,12 @@ tsgo --build .         # Direct TypeScript check
 ### WASM (In-Browser)
 - **Latency:** ~1-5ms
 - **Network:** None
-- **Best for:** Interactive UIs, offline apps
+- **Best for:** Interactive editing, real-time feedback, offline
 
 ### WebSocket (Server)
 - **Latency:** ~10-50ms (network dependent)
 - **Network:** Yes
-- **Best for:** Heavy computation, shared state
+- **Best for:** Heavy analysis, shared state, collaboration
 
 ## Security Considerations
 
@@ -206,25 +211,25 @@ tsgo --build .         # Direct TypeScript check
 
 ## Extending
 
+### Add New Language Feature
+
+1. Extend `ErrorKind` in `shared-types/src/lib.rs`
+2. Add detection in `editor-core/src/handler.rs`
+3. Run codegen to update TypeScript types
+4. UI automatically gets new error types!
+
 ### Add HTTP REST Transport
 
-1. Create `pathfinder-http/` crate
+1. Create `editor-http/` crate
 2. Implement `WireResponseSender` for HTTP responses
-3. Use same `PathfinderHandler`!
+3. Use same `EditorHandler`!
 
-### Add gRPC Transport
+### Add Real Parser
 
-1. Create `pathfinder-grpc/` crate
-2. Define proto files from shared-types
-3. Implement gRPC service with `PathfinderHandler`
-
-### Add New Pathfinding Algorithm
-
-1. Add to `pathfinder-core/src/lib.rs`
-2. Add method to `CallHandler` impl
-3. Define types in `shared-types/`
-4. Generate TypeScript types
-5. Use from any transport!
+Replace simple lexical analysis in `editor-core/src/handler.rs` with:
+- Tree-sitter for production parsing
+- Custom parser for your language
+- Integration with existing compiler
 
 ## FAQ
 
@@ -237,15 +242,15 @@ A: Supports streaming responses, better for long-running operations.
 **Q: Can I use both transports simultaneously?**  
 A: Yes! Create two routers with different adaptors.
 
-**Q: How do I debug WebSocket issues?**  
-A: Use `test-ws-client.html` or browser DevTools Network tab.
+**Q: How do I add syntax highlighting?**  
+A: Configure Monaco Editor's language definitions in the editor component.
 
-**Q: Why Tilt for development?**  
-A: Manages multiple services (WASM rebuild, Vite, WebSocket server) in one UI.
+**Q: Why Monaco Editor instead of CodeMirror?**  
+A: Monaco is the actual VS Code editor - full-featured and well-maintained.
 
 ## Links
 
-- **Main App:** http://localhost:10880
+- **Main Editor:** http://localhost:10880
 - **WebSocket:** ws://localhost:10810
 - **Tilt UI:** http://localhost:10350
 
@@ -254,9 +259,5 @@ A: Manages multiple services (WASM rebuild, Vite, WebSocket server) in one UI.
 1. Check **AGENTS.md** for commands
 2. Run `cargo check --workspace` before committing
 3. Run `tsgo --build .` for type checking
-4. Test manually with `test-ws-both-transports.html`
+4. Test with both WASM and WebSocket transports
 5. Update docs if adding features
-
-## License
-
-[Your License Here]
