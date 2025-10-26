@@ -6,7 +6,6 @@ import type { AnalyzerDiagnostics, DiagnosticMessage, DiagnosticRich, RichBlock 
 import { useEditorDiagnostics } from "./useEditorDiagnostics";
 import { ResizablePanel } from "./ResizablePanel";
 import type * as Monaco from "monaco-editor";
-import { oklch2rgb, rgb2hex } from "colorizr";
 import { initMermaid, renderMermaidToDataUri } from "./mermaid";
 import { collapseMarkdown as collapseMd, renderMarkdownToHtml } from "./markdown";
 import { useMemo } from "react";
@@ -128,42 +127,40 @@ export function EditorComponent({ router, initialContent = INITIAL_CODE }: Edito
 
   function handleEditorBeforeMount(monaco: typeof Monaco) {
     initMermaid(theme !== "dark");
-    // Helper to convert oklch CSS variable to hex for Monaco
-    const oklchToHex = (oklchString: string): string => {
-      // Parse oklch format: "oklch(l c h)" where values are space-separated
-      const match = oklchString.match(/oklch\(([\d.]+)\s+([\d.]+)\s+([\d.]+)\)/);
-      if (!match) {
-        console.warn(`Could not parse oklch color: ${oklchString}`);
-        return "#000000"; // fallback
-      }
-
-      const [, l, c, h] = match;
-      const rgb = oklch2rgb({ l: Number(l), c: Number(c), h: Number(h) });
-      return rgb2hex(rgb);
+    // Robust color resolvers that work across browsers (including iOS Safari)
+    const rgbStringToHex = (color: string): string => {
+      // Expect formats like: rgb(r, g, b) or rgba(r, g, b, a)
+      const m = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+      if (!m) return "#000000";
+      const [r, g, b] = [Number(m[1]), Number(m[2]), Number(m[3])];
+      const toHex = (n: number) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, "0");
+      return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
     };
 
-    // Helper to get CSS variable and convert to hex
-    const getCssVarAsHex = (varName: string, isLightTheme: boolean): string => {
+    // Resolve a CSS var by applying it to a probe element and reading computed color
+    const resolveCssVarToHex = (varName: string, isLightTheme: boolean): string => {
       const root = document.documentElement;
-      
-      // Temporarily set theme to get correct value
       const originalTheme = root.getAttribute("data-theme");
-      if (isLightTheme) {
-        root.setAttribute("data-theme", "light");
-      } else {
-        root.removeAttribute("data-theme");
-      }
 
-      const value = getComputedStyle(root).getPropertyValue(varName).trim();
-      
-      // Restore original theme
-      if (originalTheme === "light") {
-        root.setAttribute("data-theme", "light");
-      } else {
-        root.removeAttribute("data-theme");
-      }
+      if (isLightTheme) root.setAttribute("data-theme", "light");
+      else root.removeAttribute("data-theme");
 
-      return oklchToHex(value);
+      const probe = document.createElement("div");
+      probe.style.position = "absolute";
+      probe.style.left = "-9999px";
+      probe.style.top = "0";
+      probe.style.width = "0";
+      probe.style.height = "0";
+      probe.style.pointerEvents = "none";
+      probe.style.color = `var(${varName})`;
+      document.body.appendChild(probe);
+      const color = getComputedStyle(probe).color || "";
+      probe.remove();
+
+      if (originalTheme === "light") root.setAttribute("data-theme", "light");
+      else root.removeAttribute("data-theme");
+
+      return rgbStringToHex(color);
     };
 
     // Define custom dark theme with dynamically converted colors
@@ -172,24 +169,24 @@ export function EditorComponent({ router, initialContent = INITIAL_CODE }: Edito
       inherit: true,
       rules: [],
       colors: {
-        "editor.background": getCssVarAsHex("--color-terminal-black", false),
-        "editor.foreground": getCssVarAsHex("--color-terminal-text", false),
-        "editor.lineHighlightBackground": getCssVarAsHex("--color-terminal-gray", false),
-        "editorLineNumber.foreground": getCssVarAsHex("--color-terminal-text-dimmer", false),
-        "editorLineNumber.activeForeground": getCssVarAsHex("--color-terminal-text-dim", false),
-        "editor.selectionBackground": getCssVarAsHex("--color-terminal-gray-light", false),
-        "editor.inactiveSelectionBackground": getCssVarAsHex("--color-terminal-gray", false),
-        "editorCursor.foreground": getCssVarAsHex("--color-terminal-green", false),
-        "editorWhitespace.foreground": getCssVarAsHex("--color-terminal-text-dimmer", false),
-        "editorIndentGuide.background": getCssVarAsHex("--color-terminal-border", false),
-        "editorIndentGuide.activeBackground": getCssVarAsHex("--color-terminal-border-bright", false),
-        "editorWidget.background": getCssVarAsHex("--color-terminal-gray", false),
-        "editorWidget.border": getCssVarAsHex("--color-terminal-border", false),
-        "editorHoverWidget.background": getCssVarAsHex("--color-terminal-gray-light", false),
-        "editorHoverWidget.border": getCssVarAsHex("--color-terminal-border-bright", false),
-        "editorSuggestWidget.background": getCssVarAsHex("--color-terminal-gray", false),
-        "editorSuggestWidget.border": getCssVarAsHex("--color-terminal-border", false),
-        "editorSuggestWidget.selectedBackground": getCssVarAsHex("--color-terminal-gray-light", false),
+        "editor.background": resolveCssVarToHex("--color-terminal-black", false),
+        "editor.foreground": resolveCssVarToHex("--color-terminal-text", false),
+        "editor.lineHighlightBackground": resolveCssVarToHex("--color-terminal-gray", false),
+        "editorLineNumber.foreground": resolveCssVarToHex("--color-terminal-text-dimmer", false),
+        "editorLineNumber.activeForeground": resolveCssVarToHex("--color-terminal-text-dim", false),
+        "editor.selectionBackground": resolveCssVarToHex("--color-terminal-gray-light", false),
+        "editor.inactiveSelectionBackground": resolveCssVarToHex("--color-terminal-gray", false),
+        "editorCursor.foreground": resolveCssVarToHex("--color-terminal-green", false),
+        "editorWhitespace.foreground": resolveCssVarToHex("--color-terminal-text-dimmer", false),
+        "editorIndentGuide.background": resolveCssVarToHex("--color-terminal-border", false),
+        "editorIndentGuide.activeBackground": resolveCssVarToHex("--color-terminal-border-bright", false),
+        "editorWidget.background": resolveCssVarToHex("--color-terminal-gray", false),
+        "editorWidget.border": resolveCssVarToHex("--color-terminal-border", false),
+        "editorHoverWidget.background": resolveCssVarToHex("--color-terminal-gray-light", false),
+        "editorHoverWidget.border": resolveCssVarToHex("--color-terminal-border-bright", false),
+        "editorSuggestWidget.background": resolveCssVarToHex("--color-terminal-gray", false),
+        "editorSuggestWidget.border": resolveCssVarToHex("--color-terminal-border", false),
+        "editorSuggestWidget.selectedBackground": resolveCssVarToHex("--color-terminal-gray-light", false),
       },
     });
 
@@ -199,24 +196,24 @@ export function EditorComponent({ router, initialContent = INITIAL_CODE }: Edito
       inherit: true,
       rules: [],
       colors: {
-        "editor.background": getCssVarAsHex("--color-terminal-black", true),
-        "editor.foreground": getCssVarAsHex("--color-terminal-text", true),
-        "editor.lineHighlightBackground": getCssVarAsHex("--color-terminal-gray", true),
-        "editorLineNumber.foreground": getCssVarAsHex("--color-terminal-text-dimmer", true),
-        "editorLineNumber.activeForeground": getCssVarAsHex("--color-terminal-text-dim", true),
-        "editor.selectionBackground": getCssVarAsHex("--color-terminal-gray-light", true),
-        "editor.inactiveSelectionBackground": getCssVarAsHex("--color-terminal-gray", true),
-        "editorCursor.foreground": getCssVarAsHex("--color-terminal-green", true),
-        "editorWhitespace.foreground": getCssVarAsHex("--color-terminal-text-dimmer", true),
-        "editorIndentGuide.background": getCssVarAsHex("--color-terminal-border", true),
-        "editorIndentGuide.activeBackground": getCssVarAsHex("--color-terminal-border-bright", true),
-        "editorWidget.background": getCssVarAsHex("--color-terminal-gray", true),
-        "editorWidget.border": getCssVarAsHex("--color-terminal-border", true),
-        "editorHoverWidget.background": getCssVarAsHex("--color-terminal-gray-light", true),
-        "editorHoverWidget.border": getCssVarAsHex("--color-terminal-border-bright", true),
-        "editorSuggestWidget.background": getCssVarAsHex("--color-terminal-gray", true),
-        "editorSuggestWidget.border": getCssVarAsHex("--color-terminal-border", true),
-        "editorSuggestWidget.selectedBackground": getCssVarAsHex("--color-terminal-gray-light", true),
+        "editor.background": resolveCssVarToHex("--color-terminal-black", true),
+        "editor.foreground": resolveCssVarToHex("--color-terminal-text", true),
+        "editor.lineHighlightBackground": resolveCssVarToHex("--color-terminal-gray", true),
+        "editorLineNumber.foreground": resolveCssVarToHex("--color-terminal-text-dimmer", true),
+        "editorLineNumber.activeForeground": resolveCssVarToHex("--color-terminal-text-dim", true),
+        "editor.selectionBackground": resolveCssVarToHex("--color-terminal-gray-light", true),
+        "editor.inactiveSelectionBackground": resolveCssVarToHex("--color-terminal-gray", true),
+        "editorCursor.foreground": resolveCssVarToHex("--color-terminal-green", true),
+        "editorWhitespace.foreground": resolveCssVarToHex("--color-terminal-text-dimmer", true),
+        "editorIndentGuide.background": resolveCssVarToHex("--color-terminal-border", true),
+        "editorIndentGuide.activeBackground": resolveCssVarToHex("--color-terminal-border-bright", true),
+        "editorWidget.background": resolveCssVarToHex("--color-terminal-gray", true),
+        "editorWidget.border": resolveCssVarToHex("--color-terminal-border", true),
+        "editorHoverWidget.background": resolveCssVarToHex("--color-terminal-gray-light", true),
+        "editorHoverWidget.border": resolveCssVarToHex("--color-terminal-border-bright", true),
+        "editorSuggestWidget.background": resolveCssVarToHex("--color-terminal-gray", true),
+        "editorSuggestWidget.border": resolveCssVarToHex("--color-terminal-border", true),
+        "editorSuggestWidget.selectedBackground": resolveCssVarToHex("--color-terminal-gray-light", true),
       },
     });
   }
