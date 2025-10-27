@@ -1,6 +1,7 @@
 use crate::ast::{InputSpec, OptionNode, StreamInfo};
 use crate::codec_db::CodecDatabase;
-use shared_types::{DiagnosticKind, DiagnosticMessage, Severity, SourceCodeSpan, StreamType, DiagnosticSpan, SpanRole};
+use crate::rich_content::{build_rich_content, generate_codec_compatibility_matrix, explain_codec_format_incompatibility, explain_missing_stream};
+use shared_types::{DiagnosticKind, DiagnosticMessage, Severity, SourceCodeSpan, StreamType, DiagnosticSpan, SpanRole, RichBlock};
 use std::collections::HashMap;
 
 /// Track streams through the FFmpeg pipeline
@@ -120,6 +121,27 @@ impl StreamTracker {
             .collect()
     }
     
+    /// Get all available stream types (for rich content generation)
+    pub fn get_all_stream_types(&self) -> Vec<StreamType> {
+        let mut types: Vec<StreamType> = self.input_streams
+            .iter()
+            .map(|s| s.stream_type.clone())
+            .collect();
+        types.sort_by_key(|t| match t {
+            StreamType::Video => 0,
+            StreamType::Audio => 1,
+            StreamType::Subtitle => 2,
+            _ => 3,
+        });
+        types.dedup();
+        types
+    }
+    
+    /// Get streams for a specific input file (for pipeline diagram)
+    pub fn get_streams_for_input(&self, file_path: &str) -> Vec<StreamType> {
+        self.infer_streams_from_filename(file_path)
+    }
+    
     /// Validate filter against available stream types
     pub fn validate_filter(
         &self,
@@ -150,6 +172,7 @@ impl StreamTracker {
                         spans.push(DiagnosticSpan { span: first.clone(), role: SpanRole::Reference, message: format!("no {:?} stream in input", filter_info.input_type) });
                     }
                 }
+                let available_streams = self.get_all_stream_types();
                 return Some(DiagnosticMessage {
                     code: "E104".to_string(),
                     severity: Severity::Error,
@@ -162,7 +185,15 @@ impl StreamTracker {
                         filter_name, filter_info.input_type, filter_info.input_type
                     ),
                     spans,
-                    rich: None,
+                    rich: build_rich_content(vec![
+                        RichBlock::MarkdownGfm {
+                            markdown: explain_missing_stream(
+                                &filter_info.input_type,
+                                &format!("filter '{}'", filter_name),
+                                &available_streams,
+                            ),
+                        },
+                    ]),
                 });
             }
             
@@ -259,6 +290,14 @@ impl StreamTracker {
         }
         
         if !self.db.is_codec_supported_in_format(codec_name, format) {
+            // Get codec type for diagram
+            let codec_type = self.db.get_codec(codec_name)
+                .map(|c| c.stream_type.clone())
+                .unwrap_or(StreamType::Unknown);
+            
+            // Get compatible formats for explanation
+            let compatible_formats = self.db.get_compatible_formats(codec_name);
+            
             return Some(DiagnosticMessage {
                 code: "E201".to_string(),
                 severity: Severity::Error,
@@ -272,7 +311,22 @@ impl StreamTracker {
                     DiagnosticSpan { span: codec_span.clone(), role: SpanRole::Target, message: "codec".to_string() },
                     DiagnosticSpan { span: format_span.clone(), role: SpanRole::Reference, message: format!("{} container", format) },
                 ],
-                rich: None,
+                rich: build_rich_content(vec![
+                    RichBlock::MarkdownGfm {
+                        markdown: explain_codec_format_incompatibility(
+                            codec_name,
+                            format,
+                            &compatible_formats.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
+                        ),
+                    },
+                    RichBlock::Mermaid {
+                        mermaid: generate_codec_compatibility_matrix(
+                            codec_name,
+                            &codec_type,
+                            Some(format),
+                        ),
+                    },
+                ]),
             });
         }
         

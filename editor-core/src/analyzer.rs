@@ -1,6 +1,7 @@
 use crate::ast::{FfmpegCommand, OptionNode, OutputSpec};
 use crate::codec_db::CodecDatabase;
 use crate::stream_tracker::StreamTracker;
+use crate::rich_content::{build_rich_content, generate_pipeline_diagram};
 use shared_types::{AnalyzerDiagnostics, DiagnosticKind, DiagnosticMessage, Severity, SourceCodeSpan, StreamType, DiagnosticRich, RichBlock, DiagnosticSpan, SpanRole};
 
 /// Analyze FFmpeg command and return diagnostics
@@ -17,6 +18,32 @@ pub fn analyze_command(command: FfmpegCommand) -> AnalyzerDiagnostics {
     for output in &command.outputs {
         let output_diagnostics = analyze_output(output, &tracker, &db);
         diagnostics.extend(output_diagnostics);
+    }
+    
+    // Phase 3: Add informational diagnostic with pipeline visualization (if valid command)
+    if !command.inputs.is_empty() && !command.outputs.is_empty() {
+        let pipeline_diagram = generate_pipeline_diagram(&command, &tracker, &db);
+        diagnostics.push(DiagnosticMessage {
+            code: "I001".to_string(),
+            severity: Severity::Hint,
+            kind: DiagnosticKind::ParseError { 
+                message: "Pipeline overview".to_string() 
+            },
+            message: "FFmpeg pipeline flow".to_string(),
+            spans: vec![DiagnosticSpan {
+                span: command.span.clone(),
+                role: SpanRole::Target,
+                message: "entire command".to_string(),
+            }],
+            rich: build_rich_content(vec![
+                RichBlock::MarkdownGfm {
+                    markdown: "## Pipeline Overview\n\nThis diagram shows how data flows through your FFmpeg command.".to_string(),
+                },
+                RichBlock::Mermaid {
+                    mermaid: pipeline_diagram,
+                },
+            ]),
+        });
     }
     
     AnalyzerDiagnostics { messages: diagnostics }

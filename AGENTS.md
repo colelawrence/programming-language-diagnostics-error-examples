@@ -4,7 +4,7 @@
 - **Dev (recommended)**: `mise run dev:watch` - Vite + auto-rebuild WASM on Rust changes (one command)
 - **Dev (Tilt, best DX)**: `mise run tilt` or `tilt up` - Full dev environment with WebSocket server, WASM auto-rebuild, and type checking; `tilt down` to stop
 - **Dev (manual)**: `mise run dev` - Vite only (requires manual WASM rebuild on Rust changes)
-- **Server**: `mise run server` - Run WebSocket server on port 10810
+- **Server**: `mise run server` - Run WebSocket server on port 10810 (pathfinder-server crate; legacy name)
 - **Build**: `mise run build` or `bun run build` - Production build (WASM + Vite)
 - **Type check**: `mise run typecheck` or `tsgo --build .` - Check TypeScript types
 - **WASM build**: `mise run wasm:build` (prod) or `mise run wasm:dev` (dev)
@@ -20,7 +20,7 @@
   - WASM: `cargo check`
   - Server: `cargo check -p pathfinder-server`
   - Editor: `cargo check -p editor-core`
-  - Pathfinder (legacy): `cargo check -p pathfinder-core`
+  - Pathfinder (legacy, not used by editor): `cargo check -p pathfinder-core`
 
 ## Architecture
 
@@ -29,7 +29,7 @@
   - Implements `CallHandler` trait from `shared-types`
   - Analyzes code and generates structured diagnostics
   - Works with any transport (WASM, WebSocket, HTTP, etc.)
-- **`pathfinder-core/`** - Legacy pathfinding logic (kept for reference)
+- **`pathfinder-core/`** _(legacy, not used by editor)_ - Legacy pathfinding logic (kept for reference)
   - Implements `CallHandler` trait from `shared-types`
   - Uses `petgraph` for shortest path algorithms
 - **`shared-types/`** - Protocol definitions and router infrastructure
@@ -44,7 +44,7 @@
   - Implements `WireResponseSender` for WASM callbacks
   - Exports `send_request()` to JavaScript
   - Uses `editor-core::EditorHandler` for business logic
-- **`pathfinder-server/`** - WebSocket transport server
+- **`pathfinder-server/`** _(legacy crate name)_ - WebSocket transport server for editor diagnostics
   - Implements `WireResponseSender` for WebSocket connections
   - Uses `editor-core::EditorHandler` (same handler as WASM!)
   - Runs on port 10810, handles concurrent connections
@@ -78,7 +78,7 @@
 
 ## UI Style Guidelines (Tailwind v4)
 - **Design System**: Terminal-inspired interface with light/dark theme toggle defined in `src/styles.css`
-- **Theme Management**: Use `useTheme` hook from `src/useTheme.ts` for theme state and toggle function
+- **Theme Management**: Use `useTheme` hook from `src/useTheme.tsx` for theme state and toggle function
   - Theme persists to localStorage
   - Default is dark mode
   - Toggle button in header switches between light and dark

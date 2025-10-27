@@ -32,7 +32,7 @@ mise run tilt:down    # Stop all resources
 
 # Manual development (if not using Tilt)
 mise run dev          # Vite dev server only
-mise run server       # WebSocket server only
+mise run server       # WebSocket server only (pathfinder-server crate)
 mise run wasm:watch   # Auto-rebuild WASM on changes
 
 # Building
@@ -52,7 +52,7 @@ cd shared-types && cargo test --features codegen generate_typescript -- --ignore
 
 - `editor-core/` - Language analysis logic (transport-agnostic Rust)
 - `src-rust/` - Rust WASM transport layer
-- `pathfinder-server/` - WebSocket transport server
+- `pathfinder-server/` _(legacy crate name)_ - WebSocket transport server for editor diagnostics (uses `editor-core`)
 - `shared-types/` - Protocol definitions and router infrastructure
 - `src/` - React/TypeScript frontend
   - `src/editor/` - Monaco Editor components and diagnostics
@@ -60,6 +60,7 @@ cd shared-types && cargo test --features codegen generate_typescript -- --ignore
 - `pkg/` - Generated WASM module (auto-generated)
 - `dist-types/` - Auto-generated TypeScript types from Rust
 - `docs/` - Project documentation
+- `pathfinder-core/` _(legacy)_ - Legacy pathfinding demo logic (kept for reference/examples)
 
 ## Features
 

@@ -4,6 +4,7 @@ pub mod analyzer;
 pub mod codec_db;
 pub mod stream_tracker;
 pub mod handler;
+pub mod rich_content;
 
 pub use handler::EditorHandler;
 

@@ -1,12 +1,12 @@
 import Editor from "@monaco-editor/react";
 import { useEffect, useState } from "react";
-import { useTheme } from "#src/useTheme";
+import { useTheme } from "#src/useTheme.tsx";
 import type { Router } from "#src/router/types";
 import type { AnalyzerDiagnostics, DiagnosticMessage, DiagnosticRich, RichBlock } from "../../dist-types/index";
 import { useEditorDiagnostics } from "./useEditorDiagnostics";
-import { ResizablePanel } from "./ResizablePanel";
+import { SplitLayout } from "./SplitLayout";
 import type * as Monaco from "monaco-editor";
-import { initMermaid, renderMermaidToDataUri } from "./mermaid";
+import { initMermaid, renderMermaidToSvg } from "./mermaid";
 import { collapseMarkdown as collapseMd, renderMarkdownToHtml } from "./markdown";
 import { useMemo } from "react";
 // Track selected diagnostic based on cursor position
@@ -40,18 +40,19 @@ ffmpeg -i input.mp4 output.mp4
 ffmpeg -i video.mov -c:v libx264 -b:v 2M -c:a aac output.mp4
 
 # Try this: Apply video filter to audio-only file (will show error)
-# ffmpeg -i audio.mp3 -vf scale=1920:1080 output.mp4
+ffmpeg -i audio.mp3 -vf scale=1920:1080 output.mp4
 
 # Try this: Use VP9 codec with MP4 container (codec/format incompatibility)
-# ffmpeg -i input.mp4 -c:v vp9 output.mp4
+ffmpeg -i input.mp4 -c:v vp9 output.mp4
 
 # Try this: Invalid resolution format (missing 'x')
-# ffmpeg -i input.mp4 -s 1920 output.mp4`;
+ffmpeg -i input.mp4 -s 1920 output.mp4`;
 
 export function EditorComponent({ router, initialContent = INITIAL_CODE }: EditorComponentProps) {
   const { theme } = useTheme();
   const [content, setContent] = useState(initialContent);
   const [editorInstance, setEditorInstance] = useState<Monaco.editor.IStandaloneCodeEditor | null>(null);
+  const [monacoInstance, setMonacoInstance] = useState<typeof Monaco | null>(null);
   const { diagnostics, isAnalyzing, error, analyzeCode } = useEditorDiagnostics({ router });
   const [cursorInfo, setCursorInfo] = useState<{ line: number; col0: number } | null>(null);
 
@@ -59,6 +60,12 @@ export function EditorComponent({ router, initialContent = INITIAL_CODE }: Edito
   useEffect(() => {
     analyzeCode(content);
   }, [content, analyzeCode]);
+
+  useEffect(() => {
+    const monacoTheme = theme === "dark" ? "transparent-dark" : "transparent-light";
+    editorInstance?.updateOptions({ theme: monacoTheme });
+    monacoInstance?.editor.setTheme(monacoTheme);
+  }, [editorInstance, monacoInstance, theme]);
 
   // Apply markers and decorations to editor when diagnostics change
   useEffect(() => {
@@ -127,93 +134,25 @@ export function EditorComponent({ router, initialContent = INITIAL_CODE }: Edito
 
   function handleEditorBeforeMount(monaco: typeof Monaco) {
     initMermaid(theme !== "dark");
-    // Robust color resolvers that work across browsers (including iOS Safari)
-    const rgbStringToHex = (color: string): string => {
-      // Expect formats like: rgb(r, g, b) or rgba(r, g, b, a)
-      const m = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
-      if (!m) return "#000000";
-      const [r, g, b] = [Number(m[1]), Number(m[2]), Number(m[3])];
-      const toHex = (n: number) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, "0");
-      return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-    };
-
-    // Resolve a CSS var by applying it to a probe element and reading computed color
-    const resolveCssVarToHex = (varName: string, isLightTheme: boolean): string => {
-      const root = document.documentElement;
-      const originalTheme = root.getAttribute("data-theme");
-
-      if (isLightTheme) root.setAttribute("data-theme", "light");
-      else root.removeAttribute("data-theme");
-
-      const probe = document.createElement("div");
-      probe.style.position = "absolute";
-      probe.style.left = "-9999px";
-      probe.style.top = "0";
-      probe.style.width = "0";
-      probe.style.height = "0";
-      probe.style.pointerEvents = "none";
-      probe.style.color = `var(${varName})`;
-      document.body.appendChild(probe);
-      const color = getComputedStyle(probe).color || "";
-      probe.remove();
-
-      if (originalTheme === "light") root.setAttribute("data-theme", "light");
-      else root.removeAttribute("data-theme");
-
-      return rgbStringToHex(color);
-    };
-
-    // Define custom dark theme with dynamically converted colors
-    monaco.editor.defineTheme("terminal-dark", {
+    setMonacoInstance(monaco);
+    
+    // Define transparent dark theme
+    monaco.editor.defineTheme("transparent-dark", {
       base: "vs-dark",
       inherit: true,
       rules: [],
       colors: {
-        "editor.background": resolveCssVarToHex("--color-terminal-black", false),
-        "editor.foreground": resolveCssVarToHex("--color-terminal-text", false),
-        "editor.lineHighlightBackground": resolveCssVarToHex("--color-terminal-gray", false),
-        "editorLineNumber.foreground": resolveCssVarToHex("--color-terminal-text-dimmer", false),
-        "editorLineNumber.activeForeground": resolveCssVarToHex("--color-terminal-text-dim", false),
-        "editor.selectionBackground": resolveCssVarToHex("--color-terminal-gray-light", false),
-        "editor.inactiveSelectionBackground": resolveCssVarToHex("--color-terminal-gray", false),
-        "editorCursor.foreground": resolveCssVarToHex("--color-terminal-green", false),
-        "editorWhitespace.foreground": resolveCssVarToHex("--color-terminal-text-dimmer", false),
-        "editorIndentGuide.background": resolveCssVarToHex("--color-terminal-border", false),
-        "editorIndentGuide.activeBackground": resolveCssVarToHex("--color-terminal-border-bright", false),
-        "editorWidget.background": resolveCssVarToHex("--color-terminal-gray", false),
-        "editorWidget.border": resolveCssVarToHex("--color-terminal-border", false),
-        "editorHoverWidget.background": resolveCssVarToHex("--color-terminal-gray-light", false),
-        "editorHoverWidget.border": resolveCssVarToHex("--color-terminal-border-bright", false),
-        "editorSuggestWidget.background": resolveCssVarToHex("--color-terminal-gray", false),
-        "editorSuggestWidget.border": resolveCssVarToHex("--color-terminal-border", false),
-        "editorSuggestWidget.selectedBackground": resolveCssVarToHex("--color-terminal-gray-light", false),
+        "editor.background": "#00000000",
       },
     });
-
-    // Define custom light theme with dynamically converted colors
-    monaco.editor.defineTheme("terminal-light", {
+    
+    // Define transparent light theme
+    monaco.editor.defineTheme("transparent-light", {
       base: "vs",
       inherit: true,
       rules: [],
       colors: {
-        "editor.background": resolveCssVarToHex("--color-terminal-black", true),
-        "editor.foreground": resolveCssVarToHex("--color-terminal-text", true),
-        "editor.lineHighlightBackground": resolveCssVarToHex("--color-terminal-gray", true),
-        "editorLineNumber.foreground": resolveCssVarToHex("--color-terminal-text-dimmer", true),
-        "editorLineNumber.activeForeground": resolveCssVarToHex("--color-terminal-text-dim", true),
-        "editor.selectionBackground": resolveCssVarToHex("--color-terminal-gray-light", true),
-        "editor.inactiveSelectionBackground": resolveCssVarToHex("--color-terminal-gray", true),
-        "editorCursor.foreground": resolveCssVarToHex("--color-terminal-green", true),
-        "editorWhitespace.foreground": resolveCssVarToHex("--color-terminal-text-dimmer", true),
-        "editorIndentGuide.background": resolveCssVarToHex("--color-terminal-border", true),
-        "editorIndentGuide.activeBackground": resolveCssVarToHex("--color-terminal-border-bright", true),
-        "editorWidget.background": resolveCssVarToHex("--color-terminal-gray", true),
-        "editorWidget.border": resolveCssVarToHex("--color-terminal-border", true),
-        "editorHoverWidget.background": resolveCssVarToHex("--color-terminal-gray-light", true),
-        "editorHoverWidget.border": resolveCssVarToHex("--color-terminal-border-bright", true),
-        "editorSuggestWidget.background": resolveCssVarToHex("--color-terminal-gray", true),
-        "editorSuggestWidget.border": resolveCssVarToHex("--color-terminal-border", true),
-        "editorSuggestWidget.selectedBackground": resolveCssVarToHex("--color-terminal-gray-light", true),
+        "editor.background": "#00000000",
       },
     });
   }
@@ -256,50 +195,52 @@ export function EditorComponent({ router, initialContent = INITIAL_CODE }: Edito
 
   return (
     <div className="h-screen bg-background text-text">
-      <ResizablePanel initialTopHeight={500} minTopHeight={200} minBottomHeight={150}>
-        {/* Editor */}
-        <div className="h-full relative">
-          <Editor
-            height="100%"
-            defaultLanguage="shell"
-            value={content}
-            onChange={(value) => setContent(value || "")}
-            beforeMount={handleEditorBeforeMount}
-            onMount={handleEditorDidMount}
-            theme={theme === "dark" ? "terminal-dark" : "terminal-light"}
-            options={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 15,
-              lineHeight: 22,
-              minimap: { enabled: true },
-              scrollBeyondLastLine: false,
-              automaticLayout: true,
-              tabSize: 2,
-              wordWrap: "on",
-              // Disable all language-specific features
-              quickSuggestions: false,
-              parameterHints: { enabled: false },
-              suggestOnTriggerCharacters: false,
-              acceptSuggestionOnEnter: "off",
-              tabCompletion: "off",
-              wordBasedSuggestions: "off",
-              // Enable hover to show our diagnostic markers
-              hover: { enabled: true, delay: 300 },
-            }}
-          />
-          {isAnalyzing && (
-            <div className="absolute top-2 right-2 bg-surface px-3 py-1 rounded border border-border text-text-secondary">
-              Analyzing...
-            </div>
-          )}
-        </div>
-
-        {/* Diagnostics Panel and Rich Panel */}
-        <div className="grid grid-cols-2 h-full">
-          <DiagnosticsPanel diagnostics={diagnostics} error={error} editorInstance={editorInstance} />
-          <RichPanel diagnostics={diagnostics} cursorInfo={cursorInfo} />
-        </div>
-      </ResizablePanel>
+      <SplitLayout
+        editor={
+          <div className="h-full relative">
+            <Editor
+              height="100%"
+              defaultLanguage="shell"
+              value={content}
+              onChange={(value) => setContent(value || "")}
+              beforeMount={handleEditorBeforeMount}
+              onMount={handleEditorDidMount}
+              theme={theme === "dark" ? "transparent-dark" : "transparent-light"}
+              options={{
+                fontFamily: "var(--font-mono)",
+                fontSize: 15,
+                lineHeight: 22,
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                tabSize: 2,
+                wordWrap: "on",
+                // Disable all language-specific features
+                quickSuggestions: false,
+                parameterHints: { enabled: false },
+                suggestOnTriggerCharacters: false,
+                acceptSuggestionOnEnter: "off",
+                tabCompletion: "off",
+                wordBasedSuggestions: "off",
+                // Enable hover to show our diagnostic markers
+                hover: { enabled: true, delay: 300 },
+              }}
+            />
+            {isAnalyzing && (
+              <div className="absolute top-2 right-2 bg-surface px-3 py-1 rounded border border-border text-text-secondary">
+                Analyzing...
+              </div>
+            )}
+          </div>
+        }
+        diagnosticsPanel={<DiagnosticsPanel diagnostics={diagnostics} error={error} editorInstance={editorInstance} cursorInfo={cursorInfo} />}
+        richPanel={<RichPanel diagnostics={diagnostics} cursorInfo={cursorInfo} />}
+        initialHorizontalSize={800}
+        initialVerticalSize={300}
+        minEditorWidth={400}
+        minPanelWidth={300}
+        minPanelHeight={150}
+      />
     </div>
   );
 }
@@ -308,9 +249,10 @@ interface DiagnosticsPanelProps {
   diagnostics: AnalyzerDiagnostics | null;
   error: string | null;
   editorInstance: Monaco.editor.IStandaloneCodeEditor | null;
+  cursorInfo: { line: number; col0: number } | null;
 }
 
-function DiagnosticsPanel({ diagnostics, error, editorInstance }: DiagnosticsPanelProps) {
+function DiagnosticsPanel({ diagnostics, error, editorInstance, cursorInfo }: DiagnosticsPanelProps) {
   const handleDiagnosticClick = (span: DiagnosticMessage["spans"][0]) => {
     if (!editorInstance) return;
     // Set cursor position and selection to the span
@@ -324,6 +266,28 @@ function DiagnosticsPanel({ diagnostics, error, editorInstance }: DiagnosticsPan
     editorInstance.setSelection(selection);
     editorInstance.revealRangeInCenter(selection, monaco.editor.ScrollType.Smooth);
     editorInstance.focus();
+  };
+
+  const getRoleIndicator = (role: DiagnosticMessage["spans"][0]["role"]) => {
+    switch (role.type) {
+      case "Reference":
+        return "→ ";
+      case "Suggestion":
+        return "💡 ";
+      case "Target":
+        return "";
+      default:
+        return "• ";
+    }
+  };
+
+  const getSeverityWeight = (severity: DiagnosticMessage["severity"]): number => {
+    switch (severity.type) {
+      case "Error": return 4;
+      case "Warning": return 3;
+      case "Info": return 2;
+      case "Hint": return 1;
+    }
   };
 
   if (error) {
@@ -343,8 +307,13 @@ function DiagnosticsPanel({ diagnostics, error, editorInstance }: DiagnosticsPan
     );
   }
 
-  const errorCount = diagnostics.messages.filter((m) => m.severity.type === "Error").length;
-  const warningCount = diagnostics.messages.filter((m) => m.severity.type === "Warning").length;
+  // Sort all diagnostics by severity (Error > Warning > Info > Hint)
+  const sortedMessages = [...diagnostics.messages].sort((a, b) => 
+    getSeverityWeight(b.severity) - getSeverityWeight(a.severity)
+  );
+
+  const errorCount = sortedMessages.filter((m) => m.severity.type === "Error").length;
+  const warningCount = sortedMessages.filter((m) => m.severity.type === "Warning").length;
 
   return (
     <div className="h-full bg-surface overflow-auto">
@@ -355,26 +324,29 @@ function DiagnosticsPanel({ diagnostics, error, editorInstance }: DiagnosticsPan
           {warningCount > 0 && `${warningCount} ${warningCount === 1 ? "warning" : "warnings"}`}
         </div>
         <div className="space-y-3">
-          {diagnostics.messages.map((msg, idx) => (
+          {sortedMessages.map((msg, idx) => (
             <div key={idx} className={`border-l-2 ${getSeverityBorderClass(msg.severity)} pl-3`}>
               <div className="flex items-start gap-2">
                 <span className={`${getSeverityTextClass(msg.severity)} font-mono font-semibold`}>{msg.code}</span>
                 <div className="flex-1">
                   <div className="text-text">{msg.message}</div>
-                  {msg.spans.filter((s) => s.role.type !== "Target").map((span, spanIdx) => (
+                  {msg.spans.map((span, spanIdx) => (
                     <button
                       key={spanIdx}
                       onClick={() => handleDiagnosticClick(span)}
                       className="mt-1 text-text-secondary font-mono text-sm hover:text-primary hover:underline cursor-pointer text-left block"
                     >
-                      {span.message} — Line {span.span.start_line}, Col {span.span.start_column}
+                      {getRoleIndicator(span.role)}{span.message} — {span.span.start_line}:{span.span.start_column}
                     </button>
                   ))}
                 </div>
               </div>
             </div>
           ))}
-          <pre>{JSON.stringify(diagnostics, null, 2)}</pre>
+          <details>
+            <summary className="text-text-secondary cursor-pointer">Raw diagnostics</summary>
+            <pre>{JSON.stringify(sortedMessages, null, 2)}</pre>
+          </details>
         </div>
       </div>
     </div>
@@ -387,13 +359,23 @@ interface RichPanelProps {
 }
 
 function RichPanel({ diagnostics, cursorInfo }: RichPanelProps) {
-  const active = useMemo(() => {
-    if (!diagnostics || !cursorInfo) return null;
+  const getSeverityWeight = (severity: DiagnosticMessage["severity"]): number => {
+    switch (severity.type) {
+      case "Error": return 4;
+      case "Warning": return 3;
+      case "Info": return 2;
+      case "Hint": return 1;
+    }
+  };
+
+  const activeDiagnostics = useMemo(() => {
+    if (!diagnostics || !cursorInfo) return [];
     const hits = findDiagnosticsAtPosition(diagnostics, cursorInfo.line, cursorInfo.col0);
-    return hits[0] || null;
+    // Sort by severity (Error > Warning > Info > Hint)
+    return hits.sort((a, b) => getSeverityWeight(b.severity) - getSeverityWeight(a.severity));
   }, [diagnostics, cursorInfo]);
 
-  if (!active) {
+  if (activeDiagnostics.length === 0) {
     return (
       <div className="h-full bg-surface border-l border-border p-4 overflow-auto text-text-secondary">
         Move cursor into a highlighted span to see details.
@@ -401,28 +383,64 @@ function RichPanel({ diagnostics, cursorInfo }: RichPanelProps) {
     );
   }
 
-  const blocks = (active.rich as DiagnosticRich | null)?.blocks ?? [];
-
   return (
     <div className="h-full bg-surface border-l border-border p-4 overflow-auto">
-      <div className="text-text font-semibold mb-2">{active.code}: {active.message}</div>
-      <div className="space-y-4">
-        {blocks.map((b, i) => {
-          if (b.type === "MarkdownGfm") {
-            const html = renderMarkdownToHtml(b.markdown);
-            return <div key={i} className="prose prose-invert" dangerouslySetInnerHTML={{ __html: html }} />;
-          }
-          if (b.type === "Mermaid") {
-            // Render as fenced code for now; future: inline SVG render with mermaid.render
-            return (
-              <pre key={i} className="bg-surface-elevated p-3 rounded border border-border overflow-auto">
-{`mermaid\n${b.mermaid}`}
-              </pre>
-            );
-          }
-          return null;
+      <div className="space-y-6">
+        {activeDiagnostics.map((active, idx) => {
+          const blocks = (active.rich as DiagnosticRich | null)?.blocks ?? [];
+          return (
+            <div key={idx} className={idx > 0 ? "pt-6 border-t border-border" : ""}>
+              <div className="text-text font-semibold mb-2">{active.code}: {active.message}</div>
+              <div className="space-y-4">
+                {blocks.map((b, i) => {
+                  if (b.type === "MarkdownGfm") {
+                    const html = renderMarkdownToHtml(b.markdown);
+                    return <div key={i} className="prose prose-invert" dangerouslySetInnerHTML={{ __html: html }} />;
+                  }
+                  if (b.type === "Mermaid") {
+                    return <MermaidDiagram key={i} code={b.mermaid} />;
+                  }
+                  return null;
+                })}
+              </div>
+            </div>
+          );
         })}
       </div>
+    </div>
+  );
+}
+
+function MermaidDiagram({ code }: { code: string }) {
+  const [svg, setSvg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    renderMermaidToSvg(code)
+      .then(setSvg)
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
+  }, [code]);
+
+  if (error) {
+    return (
+      <div className="bg-surface-elevated p-3 rounded border border-error">
+        <div className="text-error font-semibold mb-2">Failed to render diagram</div>
+        <pre className="text-text-secondary text-sm overflow-auto">{code}</pre>
+      </div>
+    );
+  }
+
+  if (!svg) {
+    return (
+      <div className="bg-surface-elevated p-3 rounded border border-border">
+        <div className="text-text-secondary">Rendering diagram...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-surface-elevated p-3 rounded border border-border overflow-auto">
+      <div dangerouslySetInnerHTML={{ __html: svg }} />
     </div>
   );
 }

@@ -75,6 +75,7 @@ pub enum Severity {
 
 /// Stream type in FFmpeg
 #[protocol("wasm")]
+#[derive(PartialEq, Eq)]
 pub enum StreamType {
     Video,
     Audio,

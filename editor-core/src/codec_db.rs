@@ -241,6 +241,35 @@ impl CodecDatabase {
         }
         None
     }
+    
+    /// Get list of compatible formats for a given codec
+    pub fn get_compatible_formats(&self, codec: &str) -> Vec<String> {
+        let mut compatible = Vec::new();
+        
+        if let Some(codec_info) = self.get_codec(codec) {
+            for (_, format_info) in &self.formats {
+                let is_compatible = match codec_info.stream_type {
+                    StreamType::Video => {
+                        format_info.supported_video_codecs.contains(&codec.to_string())
+                    }
+                    StreamType::Audio => {
+                        format_info.supported_audio_codecs.contains(&codec.to_string())
+                    }
+                    _ => false,
+                };
+                
+                if is_compatible {
+                    // Use the first extension as the representative format name
+                    if let Some(ext) = format_info.extensions.first() {
+                        compatible.push(ext.clone());
+                    }
+                }
+            }
+        }
+        
+        compatible.sort();
+        compatible
+    }
 }
 
 impl Default for CodecDatabase {

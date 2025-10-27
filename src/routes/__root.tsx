@@ -1,5 +1,5 @@
 import { Outlet, createRootRoute } from "@tanstack/react-router";
-import { useTheme } from "#src/useTheme.ts";
+import { ThemeProvider, useTheme } from "#src/useTheme.tsx";
 
 function RootLayout() {
   const { theme, toggleTheme } = useTheme();
@@ -7,7 +7,7 @@ function RootLayout() {
   return (
     <div className="min-h-screen bg-background text-text">
       <header className="flex items-center justify-between border-b border-border p-4">
-        <h1 className="text-primary">$ pathfinder</h1>
+        <h1 className="text-primary">$ programming-language-diagnostics-error-examples</h1>
         <button
           type="button"
           onClick={toggleTheme}
@@ -25,5 +25,9 @@ function RootLayout() {
 }
 
 export const Route = createRootRoute({
-  component: RootLayout,
+  component: () => (
+    <ThemeProvider>
+      <RootLayout />
+    </ThemeProvider>
+  ),
 });
